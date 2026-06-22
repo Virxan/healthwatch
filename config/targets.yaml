@@ -1,0 +1,19 @@
+# Targets monitored by Healthwatch.
+#
+# interval_seconds: how often this target is checked (default: 30)
+# timeout_seconds:  per-check HTTP timeout (default: 5)
+targets:
+  - name: example
+    url: https://example.com
+    interval_seconds: 30
+    timeout_seconds: 5
+
+  - name: github
+    url: https://github.com
+    interval_seconds: 30
+    timeout_seconds: 5
+
+  - name: anthropic
+    url: https://www.anthropic.com
+    interval_seconds: 60
+    timeout_seconds: 5

@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: healthwatch
+  namespace: healthwatch
+  labels:
+    app.kubernetes.io/name: healthwatch
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: healthwatch
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: healthwatch
+    spec:
+      # The Nix-built image has no shell and no package manager, so there
+      # is nothing for an attacker to pivot to even with code execution -
+      # this securityContext just makes Kubernetes enforce the same
+      # posture it was already built with.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: healthwatch
+          image: healthwatch:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - -config=/etc/healthwatch/targets.yaml
+            - -addr=:8080
+
+          ports:
+            - name: http
+              containerPort: 8080
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 250m
+              memory: 64Mi
+
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 10
+
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 1
+            periodSeconds: 5
+
+          volumeMounts:
+            - name: targets
+              mountPath: /etc/healthwatch
+              readOnly: true
+
+      volumes:
+        - name: targets
+          configMap:
+            name: healthwatch-targets

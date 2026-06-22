@@ -1,0 +1,25 @@
+version: "2"
+
+run:
+  timeout: 3m
+
+linters:
+  default: standard
+  enable:
+    - gosec
+    - bodyclose
+    - misspell
+    - revive
+  exclusions:
+    rules:
+      # Test files commonly ignore returned errors on cleanup (e.g.
+      # resp.Body.Close() in defer, os.Remove in t.Cleanup) - not worth
+      # the noise for a project this size.
+      - path: _test\.go
+        linters:
+          - errcheck
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

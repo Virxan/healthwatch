@@ -1,0 +1,23 @@
+# Go
+/bin/
+*.test
+*.out
+
+# Nix
+result
+result-*
+
+# Container / security tool outputs
+*.tar
+*.tar.gz
+sbom*.json
+sbom*.spdx.json
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+
+# direnv (optional local convenience, not committed)
+.direnv/
+.envrc.local

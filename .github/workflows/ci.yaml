@@ -1,0 +1,105 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - run: go install mvdan.cc/gofumpt@latest
+      - name: format check
+        run: |
+          out="$(gofumpt -l .)"
+          if [ -n "$out" ]; then echo "$out"; exit 1; fi
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
+      - name: yamllint
+        run: |
+          pip install --quiet yamllint
+          yamllint -c .yamllint.yaml deploy/ argocd/ .github/workflows/ \
+            lefthook.yml .golangci.yml .yamllint.yaml
+
+      - name: markdownlint
+        uses: DavidAnson/markdownlint-cli2-action@v18
+        with:
+          config: .markdownlint.json
+          globs: "**/*.md"
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - run: go build ./...
+      - run: go test ./... -race -v
+
+  container:
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: cachix/install-nix-action@v27
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: build container with Nix
+        run: nix build .#container -o result-container
+
+      - name: generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: ""
+          file: result-container
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      - name: scan for CVEs
+        uses: anchore/scan-action@v4
+        with:
+          path: "docker-archive:result-container"
+          fail-build: true
+          severity-cutoff: medium
+
+      - name: upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.spdx.json
+
+      - name: load and push image
+        if: github.ref == 'refs/heads/main'
+        run: |
+          docker load < result-container
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker tag healthwatch:latest ghcr.io/${{ github.repository }}:latest
+          docker tag healthwatch:latest ghcr.io/${{ github.repository }}:${{ github.sha }}
+          docker push ghcr.io/${{ github.repository }}:latest
+          docker push ghcr.io/${{ github.repository }}:${{ github.sha }}
