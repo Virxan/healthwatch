@@ -91,7 +91,7 @@ cve:
 
 # Inspect container layers for minimality
 dive:
-    dive "docker-archive:{{image}}"
+    dive "{{image}}" --source docker-archive
 
 # --- container -----------------------------------------------------------
 

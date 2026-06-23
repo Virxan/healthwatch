@@ -73,6 +73,10 @@
           container = pkgs.dockerTools.buildLayeredImage {
             name = "healthwatch";
             tag = "latest";
+            # Uncompressed: syft/grype/dive all read "docker-archive:" as a
+            # plain tar, and k3d/docker load both handle uncompressed tars
+            # fine too. Gzip (the default) breaks the first three.
+            compressor = "none";
             contents = [
               healthwatch
               pkgs.cacert
