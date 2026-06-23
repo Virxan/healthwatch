@@ -56,7 +56,7 @@
 
             # First build will fail with the expected hash printed in the
             # error message - paste it in here once go.sum is stable.
-            vendorHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+            vendorHash = "sha256-fGvqTqHF+WpspJ9Z+Vzle9ifjLdgAFjKHoLlVJsx+rg=";
 
             env.CGO_ENABLED = "0";
             ldflags = [ "-s" "-w" ];
