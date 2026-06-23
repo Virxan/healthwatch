@@ -16,7 +16,7 @@
         in {
           default = pkgs.mkShell {
             packages = with pkgs; [
-              go_1_23
+              go
               gotools
               golangci-lint
               gofumpt
