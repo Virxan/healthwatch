@@ -160,6 +160,10 @@ provided by the dev shell on every platform - that's the point of it.
 
 ## Quick start
 
+> Already set everything up once and just rebooted? Skip ahead to
+> [`docs/cold-start.md`](docs/cold-start.md) instead of redoing this from
+> scratch.
+
 ```sh
 nix develop          # one command, full toolchain
 just                 # list every available task
