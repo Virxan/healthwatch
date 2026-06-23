@@ -2,7 +2,7 @@
   description = "Healthwatch - a lightweight website health-check aggregator";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
   };
 
   outputs = { self, nixpkgs }:
@@ -21,7 +21,7 @@
               golangci-lint
               gofumpt
               yamllint
-              nodePackages.markdownlint-cli
+              markdownlint-cli
 
               k3d
               kubectl
