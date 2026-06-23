@@ -17,6 +17,7 @@ import (
 // Status is the outcome of a single check.
 type Status string
 
+// Status values a check can report.
 const (
 	StatusUp   Status = "up"
 	StatusDown Status = "down"
@@ -88,7 +89,7 @@ func (c *Checker) Check(ctx context.Context, target config.Target) Result {
 		result.Error = err.Error()
 		return result
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Drain the body so the connection can be reused, but don't keep the
 	// content - Healthwatch only cares about reachability, not payloads.

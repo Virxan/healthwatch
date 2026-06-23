@@ -57,6 +57,9 @@ func serve(ctx context.Context, addr string, st store.Store, logger *slog.Logger
 	httpServer := &http.Server{
 		Addr:    addr,
 		Handler: api.New(st),
+		// Without this, a client that trickles request headers in slowly
+		// can tie up a connection indefinitely (Slowloris).
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	errCh := make(chan error, 1)

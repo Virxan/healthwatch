@@ -56,7 +56,7 @@ func TestCheckDownOnNon2xx(t *testing.T) {
 }
 
 func TestCheckDownOnUnreachable(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
 	srv.Close() // close immediately: the URL is now unreachable
 
 	c := checker.New(1 * time.Second)

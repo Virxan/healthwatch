@@ -43,7 +43,9 @@ type Config struct {
 
 // Load reads and parses a YAML targets file from disk.
 func Load(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
+	// path is operator-supplied (CLI flag), not untrusted user input -
+	// reading a configurable path is this function's whole purpose.
+	data, err := os.ReadFile(path) //nolint:gosec // G304: path is operator-controlled, not user input
 	if err != nil {
 		return nil, fmt.Errorf("reading config %s: %w", path, err)
 	}

@@ -44,13 +44,13 @@ func (s *Server) routes() {
 // handleHealthz is the liveness/readiness probe target for Kubernetes -
 // it reports on the Healthwatch process itself, not on the targets it
 // monitors.
-func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleHealthz(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte("ok"))
 }
 
-func (s *Server) handleListChecks(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleListChecks(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, s.store.All())
 }
 
@@ -64,7 +64,7 @@ func (s *Server) handleGetCheck(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
-func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleDashboard(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.tmpl.Execute(w, s.store.All()); err != nil {
 		http.Error(w, "rendering dashboard", http.StatusInternalServerError)

@@ -41,7 +41,7 @@ func (f *checkerFeature) aTargetWebsiteThatRespondsWithStatus(code int) error {
 }
 
 func (f *checkerFeature) aTargetWebsiteThatIsUnreachable() error {
-	f.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	f.server = httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
 	f.target = config.Target{Name: "feature-target", URL: f.server.URL, TimeoutSeconds: 1}
 	f.server.Close() // closed immediately: the URL is now unreachable
 	return nil
