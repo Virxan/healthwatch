@@ -119,9 +119,13 @@ argocd-password:
     kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d
     @echo ""
 
-# Load a locally-built image straight into the k3d nodes (no registry needed)
+# Load a locally-built image into the local Docker daemon, then into the
+# k3d nodes by tag. (Importing the raw tarball path directly into k3d has
+# a known flaky race with its internal transfer volume - going through
+# the daemon first is the more reliable, more commonly used path.)
 import-image:
-    k3d image import {{image}} -c {{cluster}}
+    docker load < {{image}}
+    k3d image import healthwatch:latest -c {{cluster}}
 
 # Apply the raw k8s manifests directly (fast inner loop, bypasses Argo CD/git)
 deploy:
