@@ -106,7 +106,7 @@ container:
 k3d-up:
     k3d cluster create {{cluster}} --port "8080:80@loadbalancer" --wait
     kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
-    kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+    kubectl apply --server-side -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
     kubectl -n argocd wait --for=condition=available --timeout=180s deployment/argocd-server
     @echo "Argo CD is up. Run 'just argocd-password' for the initial admin password."
 
