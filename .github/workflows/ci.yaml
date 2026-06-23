@@ -103,8 +103,9 @@ jobs:
       - name: push image
         if: github.ref == 'refs/heads/main'
         run: |
+          repo_lower=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          docker tag healthwatch:latest ghcr.io/${{ github.repository }}:latest
-          docker tag healthwatch:latest ghcr.io/${{ github.repository }}:${{ github.sha }}
-          docker push ghcr.io/${{ github.repository }}:latest
-          docker push ghcr.io/${{ github.repository }}:${{ github.sha }}
+          docker tag healthwatch:latest "ghcr.io/${repo_lower}:latest"
+          docker tag healthwatch:latest "ghcr.io/${repo_lower}:${{ github.sha }}"
+          docker push "ghcr.io/${repo_lower}:latest"
+          docker push "ghcr.io/${repo_lower}:${{ github.sha }}"
