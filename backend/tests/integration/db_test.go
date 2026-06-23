@@ -10,12 +10,11 @@ package integration
 
 import (
 	"context"
+	"healthwatch/backend/db"
 	"testing"
 
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
-
-	"healthwatch/backend/db"
 )
 
 func TestPGStoreAgainstRealPostgres(t *testing.T) {
