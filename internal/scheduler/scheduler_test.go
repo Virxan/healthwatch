@@ -15,7 +15,7 @@ import (
 
 func TestSchedulerRunsImmediatelyAndOnInterval(t *testing.T) {
 	var hits int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		hits++
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -50,7 +50,7 @@ func TestSchedulerRunsImmediatelyAndOnInterval(t *testing.T) {
 }
 
 func TestSchedulerStopsWhenContextCancelled(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer srv.Close()

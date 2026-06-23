@@ -33,7 +33,7 @@ func (f *checkerFeature) reset() {
 }
 
 func (f *checkerFeature) aTargetWebsiteThatRespondsWithStatus(code int) error {
-	f.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	f.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(code)
 	}))
 	f.target = config.Target{Name: "feature-target", URL: f.server.URL, TimeoutSeconds: 2}
@@ -48,7 +48,7 @@ func (f *checkerFeature) aTargetWebsiteThatIsUnreachable() error {
 }
 
 func (f *checkerFeature) aTargetWebsiteServedOverHTTPSWithAValidCertificate() error {
-	f.server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	f.server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	f.httpClient = f.server.Client() // already trusts the test server's certificate
