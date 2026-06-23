@@ -1,0 +1,18 @@
+title = "Healthwatch gitleaks config"
+
+[extend]
+useDefault = true
+
+# The "healthwatch:healthwatch" Postgres credentials in docker-compose.yml
+# and k8s/deployment.yaml are intentionally fake, local-only dev
+# credentials (not secrets) - allowlisted so they don't drown out real
+# findings.
+[allowlist]
+description = "Known-fake local dev credentials"
+regexes = [
+  '''healthwatch:healthwatch@''',
+]
+paths = [
+  '''docker-compose\.yml''',
+  '''k8s/deployment\.yaml''',
+]

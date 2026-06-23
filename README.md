@@ -1,313 +1,259 @@
 # Healthwatch
 
-A small, dependency-light website health-check aggregator. It periodically
-checks a list of HTTP(S) targets for reachability, latency and TLS
-certificate expiry, and serves the results over a JSON API and a minimal
-dashboard.
-
-Built as the SDLC tooling exercise: reproducible dev shell (Nix), a single
-task runner (Just), git hooks (lefthook), a distroless/non-root container
-built with Nix, supply-chain checks (gitleaks, Syft, Grype), tests at two
-levels (Go unit tests + Cucumber/godog specs), a CI pipeline that enforces
-all of it, and GitOps deployment to a local Kubernetes cluster via Argo CD.
+A small CRUD application: a Go + PostgreSQL backend exposing `items`,
+fronted by a Vue 3 + Tailwind UI. Built as an SDLC tooling exercise -
+reproducible dev shell (Nix), a Taskfile that exposes every action,
+git hooks (lefthook + gitleaks), a distroless/non-root container built
+with Nix, supply-chain checks (Syft + Grype), tests at four levels (Go
+unit, Testcontainers integration, k6, Hurl), a CI pipeline that enforces
+all of it, and a bonus GitOps deployment to a local Kubernetes cluster
+via Argo CD.
 
 ## Architecture
 
 ```text
-Nix dev shell -> Git repo -+-> CI (lint, test, build, scan) -> GHCR
-                            +-> Argo CD --(GitOps sync)--> k3d cluster
-                                                              |
-                                                   Healthwatch pod
-                                            scheduler -> checker -> store -> API
-                                                              |
-                                                    target websites (HTTP+TLS)
+                 ┌──────────────┐        ┌──────────────────────────┐
+  dev:   Vite ───┤ proxy /api/* ├───────▶│                          │
+  prod:  (nothing, Go serves    │        │   backend (Go + pgx)     │
+         the Vue build itself)  │        │   GET  /health           │
+                 └──────────────┘        │   GET  /items            │
+                                          │   POST /items            │
+                                          └────────────┬─────────────┘
+                                                        │ pgx/v5
+                                                        ▼
+                                          ┌──────────────────────────┐
+                                          │   PostgreSQL (items)     │
+                                          └──────────────────────────┘
 ```
 
-The binary has no scheduler dependency beyond itself: each target gets its
-own goroutine ticking at its configured interval (`internal/scheduler`), the
-check itself measures latency and TLS expiry (`internal/checker`), results
-land in an in-memory store (`internal/store`), and `internal/api` serves them.
+Locally: `docker-compose` runs Postgres, the Go binary runs directly on
+the host, Vite serves the frontend with hot reload and proxies `/api/*`
+to the backend.
+
+In Kubernetes (`task e2e` or the Argo CD path): both Postgres and the
+backend run as pods in the `healthwatch` namespace (`k8s/deployment.yaml`);
+the backend image is a Nix-built, distroless, non-root container with the
+Vue build embedded inside it via `go:embed` - no Vite server in
+production at all.
 
 ## Setup on Windows (WSL)
 
-This assumes you already have a WSL terminal open (Ubuntu or similar) but
-nothing else installed yet. Six steps, all run **inside WSL** unless a
-step explicitly says PowerShell.
+Six steps, all run **inside WSL** unless noted otherwise. Already did
+this for a previous version of this project? You can skip straight to
+[Quick start](#quick-start) - nothing here has changed.
 
-### 0. Check you're on WSL2 with a recent build
+1. **Check WSL2 is current** - from PowerShell: `wsl --version` (update
+   with `wsl --update` if it looks old).
+2. **Enable systemd** (needed for Nix's multi-user daemon and for
+   Docker's service):
 
-From **PowerShell**:
+   ```sh
+   sudo tee /etc/wsl.conf > /dev/null << 'EOF'
+   [boot]
+   systemd=true
+   EOF
+   ```
 
-```powershell
-wsl --version
-```
+   Then from PowerShell: `wsl --shutdown`, then reopen your WSL terminal
+   and confirm with `cat /proc/1/comm` (should print `systemd`).
+3. **Base packages**: `sudo apt update && sudo apt install -y curl git unzip ca-certificates`
+4. **Install Nix** (the [Determinate installer](https://github.com/DeterminateSystems/nix-installer)
+   is tested on WSL2 and turns flakes on by default):
 
-If it's missing or clearly old, update with `wsl --update` (PowerShell,
-may need a re-open of the terminal afterwards). Recent WSL2 is required for
-the next step (systemd support) and for Docker to work well.
+   ```sh
+   curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
+   ```
 
-### 1. Enable systemd
+5. **Install Docker** (native engine, using the systemd from step 2):
 
-Nix's multi-user mode and Docker's service management both want a real init
-system. WSL doesn't enable this by default. From inside WSL:
+   ```sh
+   curl -fsSL https://get.docker.com | sudo sh
+   sudo usermod -aG docker "$USER"
+   sudo systemctl enable --now docker
+   ```
 
-```sh
-sudo tee /etc/wsl.conf > /dev/null << 'EOF'
-[boot]
-systemd=true
-EOF
-```
+   Close/reopen the terminal, then check with `docker run hello-world`.
+6. **Clone the repo onto the Linux filesystem** - not `/mnt/c/...`. Files
+   accessed through `/mnt/c` cross the Windows/Linux boundary on every
+   read, which is measurably slower and has caused real, reproducible
+   failures for this exact project (`git apply` mangling file
+   permissions, `k3d image import` failing outright on a multi-MB file
+   mid-transfer). Use the WSL side:
 
-Then, from **PowerShell**:
-
-```powershell
-wsl --shutdown
-```
-
-Reopen your WSL terminal. Verify it took effect:
-
-```sh
-cat /proc/1/comm   # should print "systemd", not "init"
-```
-
-### 2. Base packages
-
-```sh
-sudo apt update
-sudo apt install -y curl git unzip ca-certificates
-```
-
-### 3. Install Nix
-
-The [Determinate Nix Installer](https://github.com/DeterminateSystems/nix-installer)
-is the one to use here - it's explicitly tested on WSL2, sets up the
-multi-user daemon via the systemd you just enabled, and turns flakes on by
-default (the official installer makes you do that by hand).
-
-```sh
-curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
-```
-
-Close and reopen the terminal, then check:
-
-```sh
-nix --version
-nix flake metadata github:NixOS/nixpkgs/nixos-unstable   # should resolve, confirms flakes work
-```
-
-### 4. Install Docker
-
-k3d needs a container runtime to create cluster nodes. Two options - pick
-one:
-
-**Option A - native Docker Engine inside WSL (no Windows app, recommended
-if you want everything in one Linux environment):**
-
-```sh
-curl -fsSL https://get.docker.com | sudo sh
-sudo usermod -aG docker "$USER"
-sudo systemctl enable --now docker
-```
-
-Close and reopen the terminal so the new group membership applies, then
-check with `docker run hello-world`.
-
-**Option B - Docker Desktop for Windows:** install it on the Windows side,
-then in Docker Desktop's Settings -> Resources -> WSL Integration, enable
-integration for your distro. No commands needed inside WSL; `docker` will
-just be on your PATH there once that's toggled on.
-
-### 5. Get the project onto the Linux filesystem
-
-Important: don't unzip into `/mnt/c/...`. Files accessed through `/mnt/c`
-cross the Windows/Linux filesystem boundary on every read, which is
-noticeably slower and occasionally flaky for Nix and git. Keep it on the
-WSL side:
-
-```sh
-mkdir -p ~/projects && cd ~/projects
-unzip /mnt/c/Users/<you>/Downloads/healthwatch.zip   # adjust to wherever you saved the zip
-cd healthwatch
-```
-
-From here on, follow [Quick start](#quick-start) below like on any other
-Linux machine - `nix develop`, `just`, etc. all work the same way.
-
-One WSL-specific thing to know in advance: when you get to step 4
-(deploying into k3d) and run `just dashboard` or open the Argo CD UI,
-`http://localhost:<port>` from your Windows browser generally just works -
-recent WSL2 forwards localhost automatically, including ports published by
-containers. If it doesn't for some reason, get the WSL VM's address with
-`ip addr show eth0 | grep inet` and use that IP instead of `localhost` from
-Windows.
+   ```sh
+   mkdir -p ~/projects && cd ~/projects
+   git clone <your-fork-url> healthwatch
+   cd healthwatch
+   ```
 
 ## Setup on macOS / Linux
 
-Just two things, no WSL detour needed:
-
-- [Nix](https://nixos.org/download) with flakes enabled (the
-  [Determinate installer](https://github.com/DeterminateSystems/nix-installer)
-  works here too and saves you enabling flakes by hand)
-- Docker, Podman, or Docker Desktop
-
-Then jump to [Quick start](#quick-start).
-
----
-
-Everything else (Go, k3d, kubectl, helm, argocd CLI, just, lefthook,
-golangci-lint, gitleaks, syft, grype, dive, k6, yamllint, markdownlint) is
-provided by the dev shell on every platform - that's the point of it.
+Just Nix (flakes) and Docker - no WSL detour needed. Then jump to
+[Quick start](#quick-start).
 
 ## Quick start
 
-> Cloning this repo fresh? [`docs/launch.md`](docs/launch.md) has the
-> same steps as a standalone checklist. Already set up and just
-> rebooted? Skip to [`docs/cold-start.md`](docs/cold-start.md) instead.
-
 ```sh
-nix develop          # one command, full toolchain
-just                 # list every available task
+nix develop      # one command, full toolchain (go, node, k3d, task, hurl, k6...)
+task             # list every available task
 ```
 
-### 1. Run it locally, no Kubernetes at all
+`backend/go.sum` isn't committed yet - generate it once, with your
+machine's real internet access:
 
 ```sh
-just run             # serves on http://localhost:8080
+cd backend && go mod tidy && cd ..
+git add backend/go.sum && git commit -m "chore: add backend/go.sum"
 ```
 
-Open `http://localhost:8080` for the dashboard, or `curl localhost:8080/api/v1/checks`.
-
-### 2. Run the test suite
+### 1. Run it locally
 
 ```sh
-just test            # unit tests + Cucumber/godog checker specs (no network)
-just test-bdd        # just the Cucumber specs, verbose Gherkin output
-just test-e2e        # builds, runs a real instance, runs the API contract specs against it
-just lint            # golangci-lint
-just secrets         # gitleaks
+task db          # starts Postgres via docker-compose
+task build-frontend
+task run         # http://localhost:8080
 ```
 
-### 3. Build and inspect the container
+### 2. Test
 
 ```sh
-just container       # nix build .#container -> ./result-container (docker-archive)
-just sbom             # SBOM via Syft (table + sbom.spdx.json)
-just cve              # CVE scan via Grype, fails the task above medium severity
-just dive             # inspect layers for minimality
+task test               # Go unit tests, no Docker needed
+task test-integration   # Testcontainers: spins up a real, throwaway Postgres
+task test-api           # Hurl, against the instance from `task run`
+task bench               # k6, 10 VUs / 15s, p95 < 200ms
+task test-all             # all of the above
 ```
 
-The first `just container` will fail with a message like:
-
-```text
-error: hash mismatch ... got: sha256-XXXXXXX...
-```
-
-That's expected: `vendorHash` in `flake.nix` is a placeholder. Copy the
-`got:` hash into `flake.nix`'s `vendorHash` field and re-run - this is the
-normal Nix workflow whenever `go.sum` changes.
-
-### 4. Deploy to a local Kubernetes cluster (k3d) via Argo CD
-
-This is the full GitOps loop. Argo CD needs a git remote it can reach, so
-push this repo to your own GitHub (or GitLab, etc.) first:
+### 3. Lint and build the container
 
 ```sh
-git remote add origin https://github.com/<you>/healthwatch.git
-git push -u origin main
+task lint
+task container
 ```
 
-Then update `argocd/application.yaml`'s `spec.source.repoURL` to point at
-that remote, and:
+First `task container` on a given machine fails once on purpose, with a
+message like `error: hash mismatch ... got: sha256-XXXX...` - that's Nix
+telling you the real hash of `frontend/package-lock.json` and
+`backend/go.sum`. Paste the two `got:` hashes into `nix/package.nix`'s
+`npmDepsHash` and `vendorHash`, then run it again.
 
 ```sh
-just k3d-up               # creates the k3d cluster + installs Argo CD
-just argocd-password      # initial admin password (user: admin)
-just container            # build the image with Nix
-just import-image         # load it straight into the k3d nodes, no registry needed
-just argocd-app            # tell Argo CD to start tracking deploy/
+task sbom
+task cve
 ```
 
-Argo CD will reconcile `deploy/` against the cluster automatically from then
-on (`syncPolicy.automated` in `argocd/application.yaml`) - every push to
-`main` rolls out on its own.
-
-Access things:
+### 4. Full e2e in k3d
 
 ```sh
-just dashboard                                 # port-forward :8080 -> the app
-kubectl -n argocd port-forward svc/argocd-server 8443:443   # Argo CD UI on https://localhost:8443
+task e2e
 ```
 
-(On WSL: both of these are plain `localhost` ports from a `kubectl`
-process running inside WSL, so the automatic forwarding mentioned above
-applies here too.)
+Creates a throwaway k3d cluster, builds and loads the image, deploys
+Postgres + the backend (`k8s/deployment.yaml`), runs the Hurl and k6
+suites against the real cluster, then tears everything down -
+whether the tests passed or not.
 
-For a quick inner loop without touching git/Argo CD at all, `just deploy`
-applies `deploy/` directly with `kubectl apply -k`.
+### 5. GitOps with Argo CD (bonus)
 
-### 5. Load test
+This is the persistent version of the e2e cluster, kept around and
+synced from your git remote instead of torn down after one test run.
 
 ```sh
-just bench                                      # against localhost:8080
-just bench http://localhost:8080                 # same, explicit
+k3d cluster create healthwatch --wait
+task argocd-setup                      # installs Argo CD, prints the admin password
+```
+
+Push this repo to your own fork, update `k8s/argocd-app.yaml`'s
+`spec.source.repoURL` to point at it, then:
+
+```sh
+git push
+task container
+docker load < result-container
+k3d image import healthwatch-backend:latest -c healthwatch
+kubectl apply -f k8s/argocd-app.yaml
+```
+
+Argo CD now tracks `k8s/` and re-syncs on every push
+(`syncPolicy.automated` in `k8s/argocd-app.yaml`).
+
+```sh
+kubectl -n healthwatch port-forward svc/backend 8080:8080
+kubectl -n argocd port-forward svc/argocd-server 8443:443   # Argo CD UI
 ```
 
 ## Configuration
 
-Targets live in `config/targets.yaml` (local run) or the `healthwatch-targets`
-ConfigMap in `deploy/configmap.yaml` (cluster run):
+| Variable       | Required | Description                                          |
+| -------------- | -------- | ----------------------------------------------------- |
+| `DATABASE_URL` | yes      | Postgres connection string, e.g. `postgres://user:pass@host:5432/db?sslmode=disable` |
 
-```yaml
-targets:
-  - name: example
-    url: https://example.com
-    interval_seconds: 30   # default: 30
-    timeout_seconds: 5     # default: 5
-```
+The backend creates the `items` table itself on startup if it doesn't
+exist (one idempotent `CREATE TABLE IF NOT EXISTS` - no migration
+framework needed at this size).
 
 ## API
 
-| Method | Path                    | Description                                  |
-| ------ | ------------------------ | --------------------------------------------- |
-| GET    | `/healthz`               | Liveness/readiness for the process itself     |
-| GET    | `/api/v1/checks`         | Latest result for every target (JSON array)   |
-| GET    | `/api/v1/checks/{name}`  | Latest result for one target                  |
-| GET    | `/`                      | HTML dashboard                                 |
+| Method | Path                  | Also at  | Description                          |
+| ------ | --------------------- | -------- | ------------------------------------- |
+| GET    | `/health`             | `/api/health` | `{"status":"ok"}` or 503 `{"status":"down","error":"..."}` |
+| GET    | `/items`              | `/api/items`   | All items, JSON array                 |
+| POST   | `/items`              | `/api/items`   | `{"name":"..."}` → 201 with the created item, or 400 if name is empty |
+| GET    | `/*`                  | -        | The built Vue frontend                |
+
+Routes are registered at both the bare path and under `/api/` so the
+exact same frontend code (`fetch('/api/items')`) works unmodified
+whether Vite is proxying in dev or Go is serving everything in prod -
+see `backend/handlers.go`.
 
 ## Project layout
 
 ```text
-cmd/healthwatch/        entrypoint
-internal/config/        targets.yaml loading + validation
-internal/checker/       one HTTP+TLS check
-internal/scheduler/     per-target ticking loop
-internal/store/         in-memory result store
-internal/api/           JSON API + HTML dashboard
-features/checker/       Cucumber specs for the checker (no network)
-features/api/           Cucumber API-contract specs (opt-in, hits a live instance)
-test/k6/                load test script
-deploy/                 k8s manifests Argo CD tracks
-argocd/                 the Argo CD Application resource
-flake.nix               dev shell + container build
-justfile                task runner
-lefthook.yml            git hooks
-.github/workflows/      CI
+backend/
+  main.go, main_test.go      entrypoint + handler unit tests (MemoryStore)
+  handlers.go, web.go        HTTP routes, embedded frontend
+  db/                        Store interface, PGStore (pgx), MemoryStore
+  tests/integration/         Testcontainers, real Postgres (-tags integration)
+  tests/k6/, tests/hurl/     load test, API contract test
+  web/dist/                  Vite build output lands here (go:embed target)
+frontend/                    Vue 3 + Vite + Tailwind
+nix/                         dev-shell, package (Go+npm build), container, treefmt
+k8s/                         Deployment/Service/Secret for app+Postgres, Argo CD Application
+tests/e2e/                   e2e.sh (k3d cycle), setup-argocd.sh
+docker-compose.yml           local Postgres for `task run`
+Taskfile.yaml                every task
 ```
 
-## Design notes / trade-offs
+## Design notes / deviations from the brief
 
-- **No Argo Workflows**: scheduling lives in the binary itself
-  (goroutines + tickers), not in a CronWorkflow. Simpler to reason about
-  and debug, at the cost of the scheduler not being independently
-  observable/restartable from the cluster's GitOps tooling.
-- **No SQL database**: the store is in-memory only, by design - it avoids
-  a cgo driver, keeps the binary fully static, and keeps the SBOM/CVE
-  surface minimal. Restarting the pod resets history; if you need
-  persistence across restarts, that's the natural next extension point
-  (`store.Store` is an interface for exactly this reason).
-- **`go-yaml` and `godog` instead of `gopkg.in/yaml.v3` directly**: both
-  resolve straight from `github.com`, with no dependency on the
-  `gopkg.in` redirect service being reachable - one fewer external
-  service in the dependency chain. `go.mod`'s `replace` directives pin
-  the two `gopkg.in`-imported transitive dependencies godog pulls in to
-  their GitHub mirrors for the same reason.
+A few small, deliberate departures from the file list as written, each
+forced by a real constraint rather than taste:
+
+- **`backend/db/` package**: `tests/integration/db_test.go` lives in a
+  different directory than `backend/`, so it's necessarily a different
+  Go package - it can't import `package main`. The Store/PGStore/
+  MemoryStore types live in `backend/db` for exactly this reason; `main`
+  imports them like any other dependency.
+- **`frontend/eslint.config.js`**: not in the original file list, but
+  `lint-frontend` needs something to actually run - ESLint 9's flat
+  config is the standard choice for a new Vue project.
+- **Tailwind v3, not v4**: v4 replaced `tailwind.config.js` +
+  `postcss.config.js` with a CSS-first setup, which would make two
+  explicitly required files redundant. Pinned to v3 specifically so
+  those two files keep doing real work.
+- **`go 1.23` in `go.mod`, `go` (unpinned) in `nix/dev-shell.nix`**:
+  pinning the dev shell to an exact `go_1_23` package is what breaks the
+  moment that version goes end-of-life and gets removed from nixpkgs (it
+  already has, once, during this project's lifetime) - the unpinned
+  `go` attribute always tracks whatever's current, while `go.mod`'s `go
+  1.23` directive still declares the minimum language version like the
+  brief asks. A newer toolchain happily builds an older `go` directive.
+- **No `.yamllint.yaml`**: dropped - there's no `lint-yaml` task in the
+  required list, so a config for a linter nothing calls would just be
+  clutter.
+- **No committed `backend/go.sum` yet**: generated in an environment
+  with full internet access (the [Quick start](#quick-start) above has
+  the one-time command) - `testcontainers-go`'s dependency tree is deep
+  enough that producing one elsewhere wasn't reliable. Commit it once
+  it exists; from then on it behaves like any other Go project's
+  go.sum.

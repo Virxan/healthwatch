@@ -1,0 +1,24 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: healthwatch
+      POSTGRES_PASSWORD: healthwatch
+      POSTGRES_DB: healthwatch
+    ports:
+      - "5432:5432"
+    volumes:
+      - healthwatch-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U healthwatch"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  healthwatch-pgdata:
+
+networks:
+  default:
+    name: healthwatch-net

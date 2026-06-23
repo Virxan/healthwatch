@@ -1,0 +1,181 @@
+version: "3"
+
+vars:
+  IMAGE: result-container
+  COMPOSE_NETWORK: healthwatch-net
+
+tasks:
+  default:
+    desc: List all tasks
+    cmds:
+      - task --list
+    silent: true
+
+  # --- run & build -------------------------------------------------------
+
+  run:
+    desc: Run the backend locally against the docker-compose Postgres
+    dir: backend
+    env:
+      DATABASE_URL: postgres://healthwatch:healthwatch@localhost:5432/healthwatch?sslmode=disable
+    cmds:
+      - go run .
+
+  db:
+    desc: Start a local Postgres via docker-compose
+    cmds:
+      - docker compose up -d db
+      - >
+        until docker compose exec db pg_isready -U healthwatch >/dev/null 2>&1;
+        do sleep 1; done
+
+  build:
+    desc: Build the backend binary (static, CGO disabled)
+    dir: backend
+    cmds:
+      - mkdir -p ../bin
+      - CGO_ENABLED=0 go build -ldflags="-s -w" -o ../bin/backend .
+
+  build-frontend:
+    desc: Build the Vue frontend (writes directly into backend/web/dist)
+    dir: frontend
+    cmds:
+      - npm ci
+      - npm run build
+
+  # --- formatting & linting ------------------------------------------------
+
+  lint:
+    desc: Run every linter
+    deps: [lint-go, lint-frontend, lint-nix, lint-shell, lint-md]
+
+  lint-go:
+    desc: Lint the Go backend
+    dir: backend
+    cmds:
+      - golangci-lint run ./...
+
+  lint-frontend:
+    desc: Lint the Vue frontend
+    dir: frontend
+    cmds:
+      - npm run lint
+
+  lint-nix:
+    desc: Check that *.nix files are formatted (treefmt via nix fmt)
+    cmds:
+      - nix fmt -- --fail-on-change
+
+  lint-shell:
+    desc: Shellcheck every shell script
+    cmds:
+      - shellcheck tests/e2e/*.sh
+
+  lint-md:
+    desc: Lint Markdown files
+    cmds:
+      - >
+        markdownlint -c .markdownlint.json '**/*.md'
+        --ignore node_modules --ignore frontend/node_modules
+
+  fmt:
+    desc: Format Go and Nix files in place
+    cmds:
+      - cd backend && gofumpt -l -w .
+      - nix fmt
+
+  # --- tests ----------------------------------------------------------------
+
+  test:
+    desc: Run Go unit tests (no Docker required)
+    dir: backend
+    cmds:
+      - go test ./... -race
+
+  test-integration:
+    desc: Run Testcontainers integration tests against a real Postgres (needs Docker)
+    dir: backend
+    cmds:
+      - go test -tags integration ./tests/integration/... -v
+
+  bench:
+    desc: "Run the k6 load test against a running instance (override: task bench BASE_URL=...)"
+    vars:
+      BASE_URL: '{{.BASE_URL | default "http://localhost:8080"}}'
+    cmds:
+      - BASE_URL={{.BASE_URL}} k6 run backend/tests/k6/bench.js
+
+  test-api:
+    desc: "Run Hurl API contract tests against a running instance (override: task test-api BASE_URL=...)"
+    vars:
+      BASE_URL: '{{.BASE_URL | default "http://localhost:8080"}}'
+    cmds:
+      - hurl --variable base_url={{.BASE_URL}} --test backend/tests/hurl/api.hurl
+
+  test-all:
+    desc: Run every test level - unit, integration, API contract, bench
+    cmds:
+      - task: test
+      - task: test-integration
+      - task: test-api
+      - task: bench
+
+  # --- container --------------------------------------------------------------
+
+  container:
+    desc: Build the distroless, non-root (UID 1000) container image with Nix
+    cmds:
+      - nix build .#container -o {{.IMAGE}}
+
+  container-run:
+    desc: Run the built container locally against docker-compose's Postgres
+    deps: [db]
+    cmds:
+      - docker load < {{.IMAGE}}
+      - >
+        docker run --rm -p 8080:8080 --network {{.COMPOSE_NETWORK}}
+        -e DATABASE_URL=postgres://healthwatch:healthwatch@db:5432/healthwatch?sslmode=disable
+        healthwatch-backend:latest
+
+  # --- security & supply chain --------------------------------------------------
+
+  secrets:
+    desc: Scan the working tree for committed secrets
+    cmds:
+      - gitleaks detect --source . --no-banner --redact
+
+  sbom:
+    desc: Generate an SBOM for the container image (requires `task container` first)
+    cmds:
+      - syft docker-archive:{{.IMAGE}} -o spdx-json=sbom.spdx.json
+      - syft docker-archive:{{.IMAGE}} -o table
+
+  cve:
+    desc: Scan the container image for known CVEs (requires `task container` first)
+    cmds:
+      - grype docker-archive:{{.IMAGE}} --fail-on medium
+
+  # --- end-to-end / GitOps -------------------------------------------------------
+
+  e2e:
+    desc: Full e2e cycle in a throwaway k3d cluster (create, deploy, test, clean up)
+    cmds:
+      - ./tests/e2e/e2e.sh
+
+  argocd-setup:
+    desc: Install Argo CD into the current kubectl context's cluster
+    cmds:
+      - ./tests/e2e/setup-argocd.sh
+
+  # --- meta -----------------------------------------------------------------------
+
+  ci:
+    desc: Run the same checks CI runs, locally
+    cmds:
+      - task: lint
+      - task: secrets
+      - task: test
+      - task: build
+      - task: build-frontend
+      - task: container
+      - task: cve

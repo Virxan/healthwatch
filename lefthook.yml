@@ -1,12 +1,18 @@
 pre-commit:
   parallel: true
   commands:
-    format:
+    format-go:
+      root: "backend/"
       glob: "*.go"
       run: out="$(gofumpt -l {staged_files})"; if [ -n "$out" ]; then echo "$out"; exit 1; fi
-      fail_text: "files are not gofumpt-formatted - run `just fmt`"
-    lint:
+      fail_text: "files are not gofumpt-formatted - run `task fmt`"
+    lint-go:
+      root: "backend/"
       glob: "*.go"
       run: golangci-lint run ./...
+    lint-frontend:
+      root: "frontend/"
+      glob: "*.{js,vue}"
+      run: npm run lint
     secrets:
       run: gitleaks protect --staged --no-banner --redact

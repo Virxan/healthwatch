@@ -1,0 +1,1 @@
+placeholder so go:embed has something to embed (embed skips dotfiles by default)
