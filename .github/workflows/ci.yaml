@@ -73,18 +73,24 @@ jobs:
       - name: build container with Nix
         run: nix build .#container -o result-container
 
+      # anchore/sbom-action and anchore/scan-action's `path` input always
+      # forces a "dir:" scan, it can't take a docker-archive: source
+      # directly - load the tarball into the Docker daemon and reference
+      # it by tag instead (this is the pattern Anchore's own docs use).
+      - name: load image into Docker
+        run: docker load < result-container
+
       - name: generate SBOM
         uses: anchore/sbom-action@v0
         with:
-          path: ""
-          file: result-container
+          image: healthwatch:latest
           format: spdx-json
           output-file: sbom.spdx.json
 
       - name: scan for CVEs
-        uses: anchore/scan-action@v4
+        uses: anchore/scan-action@v7
         with:
-          path: "docker-archive:result-container"
+          image: healthwatch:latest
           fail-build: true
           severity-cutoff: medium
 
@@ -94,10 +100,9 @@ jobs:
           name: sbom
           path: sbom.spdx.json
 
-      - name: load and push image
+      - name: push image
         if: github.ref == 'refs/heads/main'
         run: |
-          docker load < result-container
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
           docker tag healthwatch:latest ghcr.io/${{ github.repository }}:latest
           docker tag healthwatch:latest ghcr.io/${{ github.repository }}:${{ github.sha }}
