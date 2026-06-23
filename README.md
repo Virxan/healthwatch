@@ -160,9 +160,9 @@ provided by the dev shell on every platform - that's the point of it.
 
 ## Quick start
 
-> Already set everything up once and just rebooted? Skip ahead to
-> [`docs/cold-start.md`](docs/cold-start.md) instead of redoing this from
-> scratch.
+> Cloning this repo fresh? [`docs/launch.md`](docs/launch.md) has the
+> same steps as a standalone checklist. Already set up and just
+> rebooted? Skip to [`docs/cold-start.md`](docs/cold-start.md) instead.
 
 ```sh
 nix develop          # one command, full toolchain
