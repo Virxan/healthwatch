@@ -28,14 +28,135 @@ own goroutine ticking at its configured interval (`internal/scheduler`), the
 check itself measures latency and TLS expiry (`internal/checker`), results
 land in an in-memory store (`internal/store`), and `internal/api` serves them.
 
-## Prerequisites
+## Setup on Windows (WSL)
 
-- [Nix](https://nixos.org/download) with flakes enabled
-- Docker or Podman (k3d needs a container runtime to create cluster nodes)
-- A GitHub account, if you want Argo CD to actually sync (see below)
+This assumes you already have a WSL terminal open (Ubuntu or similar) but
+nothing else installed yet. Six steps, all run **inside WSL** unless a
+step explicitly says PowerShell.
+
+### 0. Check you're on WSL2 with a recent build
+
+From **PowerShell**:
+
+```powershell
+wsl --version
+```
+
+If it's missing or clearly old, update with `wsl --update` (PowerShell,
+may need a re-open of the terminal afterwards). Recent WSL2 is required for
+the next step (systemd support) and for Docker to work well.
+
+### 1. Enable systemd
+
+Nix's multi-user mode and Docker's service management both want a real init
+system. WSL doesn't enable this by default. From inside WSL:
+
+```sh
+sudo tee /etc/wsl.conf > /dev/null << 'EOF'
+[boot]
+systemd=true
+EOF
+```
+
+Then, from **PowerShell**:
+
+```powershell
+wsl --shutdown
+```
+
+Reopen your WSL terminal. Verify it took effect:
+
+```sh
+cat /proc/1/comm   # should print "systemd", not "init"
+```
+
+### 2. Base packages
+
+```sh
+sudo apt update
+sudo apt install -y curl git unzip ca-certificates
+```
+
+### 3. Install Nix
+
+The [Determinate Nix Installer](https://github.com/DeterminateSystems/nix-installer)
+is the one to use here - it's explicitly tested on WSL2, sets up the
+multi-user daemon via the systemd you just enabled, and turns flakes on by
+default (the official installer makes you do that by hand).
+
+```sh
+curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
+```
+
+Close and reopen the terminal, then check:
+
+```sh
+nix --version
+nix flake metadata github:NixOS/nixpkgs/nixos-unstable   # should resolve, confirms flakes work
+```
+
+### 4. Install Docker
+
+k3d needs a container runtime to create cluster nodes. Two options - pick
+one:
+
+**Option A - native Docker Engine inside WSL (no Windows app, recommended
+if you want everything in one Linux environment):**
+
+```sh
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker "$USER"
+sudo systemctl enable --now docker
+```
+
+Close and reopen the terminal so the new group membership applies, then
+check with `docker run hello-world`.
+
+**Option B - Docker Desktop for Windows:** install it on the Windows side,
+then in Docker Desktop's Settings -> Resources -> WSL Integration, enable
+integration for your distro. No commands needed inside WSL; `docker` will
+just be on your PATH there once that's toggled on.
+
+### 5. Get the project onto the Linux filesystem
+
+Important: don't unzip into `/mnt/c/...`. Files accessed through `/mnt/c`
+cross the Windows/Linux filesystem boundary on every read, which is
+noticeably slower and occasionally flaky for Nix and git. Keep it on the
+WSL side:
+
+```sh
+mkdir -p ~/projects && cd ~/projects
+unzip /mnt/c/Users/<you>/Downloads/healthwatch.zip   # adjust to wherever you saved the zip
+cd healthwatch
+```
+
+From here on, follow [Quick start](#quick-start) below like on any other
+Linux machine - `nix develop`, `just`, etc. all work the same way.
+
+One WSL-specific thing to know in advance: when you get to step 4
+(deploying into k3d) and run `just dashboard` or open the Argo CD UI,
+`http://localhost:<port>` from your Windows browser generally just works -
+recent WSL2 forwards localhost automatically, including ports published by
+containers. If it doesn't for some reason, get the WSL VM's address with
+`ip addr show eth0 | grep inet` and use that IP instead of `localhost` from
+Windows.
+
+## Setup on macOS / Linux
+
+Just two things, no WSL detour needed:
+
+- [Nix](https://nixos.org/download) with flakes enabled (the
+  [Determinate installer](https://github.com/DeterminateSystems/nix-installer)
+  works here too and saves you enabling flakes by hand)
+- Docker, Podman, or Docker Desktop
+
+Then jump to [Quick start](#quick-start).
+
+---
 
 Everything else (Go, k3d, kubectl, helm, argocd CLI, just, lefthook,
-golangci-lint, gitleaks, syft, grype, dive, k6) is provided by the dev shell.
+golangci-lint, gitleaks, syft, grype, dive, k6, yamllint, markdownlint) is
+provided by the dev shell on every platform - that's the point of it.
 
 ## Quick start
 
@@ -112,6 +233,10 @@ Access things:
 just dashboard                                 # port-forward :8080 -> the app
 kubectl -n argocd port-forward svc/argocd-server 8443:443   # Argo CD UI on https://localhost:8443
 ```
+
+(On WSL: both of these are plain `localhost` ports from a `kubectl`
+process running inside WSL, so the automatic forwarding mentioned above
+applies here too.)
 
 For a quick inner loop without touching git/Argo CD at all, `just deploy`
 applies `deploy/` directly with `kubectl apply -k`.
