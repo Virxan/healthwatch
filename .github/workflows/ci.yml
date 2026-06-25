@@ -61,7 +61,9 @@ jobs:
         uses: DavidAnson/markdownlint-cli2-action@v18
         with:
           config: .markdownlint.json
-          globs: "**/*.md"
+          globs: |
+            **/*.md
+            !**/node_modules/**
 
   secrets:
     runs-on: ubuntu-latest
