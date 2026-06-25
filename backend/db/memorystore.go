@@ -29,12 +29,15 @@ func (s *MemoryStore) SetPingError(err error) {
 	s.pingError = err
 }
 
+// Ping implements Store. It never fails unless SetPingError was used to
+// simulate a database that's down.
 func (s *MemoryStore) Ping(_ context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.pingError
 }
 
+// ListItems implements Store.
 func (s *MemoryStore) ListItems(_ context.Context) ([]Item, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -44,6 +47,7 @@ func (s *MemoryStore) ListItems(_ context.Context) ([]Item, error) {
 	return out, nil
 }
 
+// CreateItem implements Store.
 func (s *MemoryStore) CreateItem(_ context.Context, name string) (Item, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

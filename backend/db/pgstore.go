@@ -53,10 +53,12 @@ func (s *PGStore) Close() {
 	s.pool.Close()
 }
 
+// Ping implements Store.
 func (s *PGStore) Ping(ctx context.Context) error {
 	return s.pool.Ping(ctx)
 }
 
+// ListItems implements Store.
 func (s *PGStore) ListItems(ctx context.Context) ([]Item, error) {
 	rows, err := s.pool.Query(ctx, `SELECT id, name, created_at FROM items ORDER BY id`)
 	if err != nil {
@@ -79,6 +81,7 @@ func (s *PGStore) ListItems(ctx context.Context) ([]Item, error) {
 	return items, nil
 }
 
+// CreateItem implements Store.
 func (s *PGStore) CreateItem(ctx context.Context, name string) (Item, error) {
 	var item Item
 	err := s.pool.QueryRow(
