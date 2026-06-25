@@ -10,8 +10,9 @@ package integration
 
 import (
 	"context"
-	"healthwatch/backend/db"
 	"testing"
+
+	"healthwatch/backend/db"
 
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -20,7 +21,8 @@ import (
 func TestPGStoreAgainstRealPostgres(t *testing.T) {
 	ctx := context.Background()
 
-	pgContainer, err := postgres.Run(ctx,
+	pgContainer, err := postgres.Run(
+		ctx,
 		"postgres:16-alpine",
 		postgres.WithDatabase("healthwatch_test"),
 		postgres.WithUsername("healthwatch"),
