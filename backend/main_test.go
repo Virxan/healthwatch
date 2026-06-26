@@ -5,9 +5,11 @@ import (
 	"embed"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"healthwatch/backend/db"
 )
@@ -15,8 +17,25 @@ import (
 //go:embed testdata/empty
 var emptyFS embed.FS
 
+// newTestServer builds a Server backed by a fresh MemoryStore and a
+// real Scheduler/Checker - the Checker's own HTTP calls during tests
+// always target newTestTargetServer's URL, so they're fast and don't
+// touch the network.
 func newTestServer() *Server {
-	return NewServer(db.NewMemoryStore(), emptyFS)
+	store := db.NewMemoryStore()
+	sched := NewScheduler(store, NewChecker(2*time.Second), 2*time.Second, nil)
+	return NewServer(store, sched, emptyFS)
+}
+
+// newTestTargetServer is a stand-in "website" for create-item tests
+// that need a real, reachable URL.
+func newTestTargetServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(srv.Close)
+	return srv
 }
 
 func TestHealthOK(t *testing.T) {
@@ -42,7 +61,8 @@ func TestHealthOK(t *testing.T) {
 func TestHealthDown(t *testing.T) {
 	store := db.NewMemoryStore()
 	store.SetPingError(errors.New("connection refused"))
-	srv := NewServer(store, emptyFS)
+	sched := NewScheduler(store, NewChecker(2*time.Second), 2*time.Second, nil)
+	srv := NewServer(store, sched, emptyFS)
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	rec := httptest.NewRecorder()
@@ -87,8 +107,10 @@ func TestListItemsEmpty(t *testing.T) {
 
 func TestCreateAndListItem(t *testing.T) {
 	srv := newTestServer()
+	target := newTestTargetServer(t)
 
-	createReq := httptest.NewRequest(http.MethodPost, "/items", bytes.NewBufferString(`{"name":"first item"}`))
+	body := fmt.Sprintf(`{"name":"first item","url":%q}`, target.URL)
+	createReq := httptest.NewRequest(http.MethodPost, "/items", bytes.NewBufferString(body))
 	createRec := httptest.NewRecorder()
 	srv.ServeHTTP(createRec, createReq)
 
@@ -106,6 +128,9 @@ func TestCreateAndListItem(t *testing.T) {
 	if created.ID == 0 {
 		t.Error("created.ID is zero, want a non-zero ID")
 	}
+	if created.LastStatus == nil || *created.LastStatus != "up" {
+		t.Errorf("created.LastStatus = %v, want \"up\" (the immediate check on create should have run)", created.LastStatus)
+	}
 
 	listReq := httptest.NewRequest(http.MethodGet, "/items", nil)
 	listRec := httptest.NewRecorder()
@@ -122,7 +147,34 @@ func TestCreateAndListItem(t *testing.T) {
 
 func TestCreateItemRejectsEmptyName(t *testing.T) {
 	srv := newTestServer()
-	req := httptest.NewRequest(http.MethodPost, "/items", bytes.NewBufferString(`{"name":"   "}`))
+	target := newTestTargetServer(t)
+
+	body := fmt.Sprintf(`{"name":"   ","url":%q}`, target.URL)
+	req := httptest.NewRequest(http.MethodPost, "/items", bytes.NewBufferString(body))
+	rec := httptest.NewRecorder()
+
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
+func TestCreateItemRejectsMissingURL(t *testing.T) {
+	srv := newTestServer()
+	req := httptest.NewRequest(http.MethodPost, "/items", bytes.NewBufferString(`{"name":"no url"}`))
+	rec := httptest.NewRecorder()
+
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
+func TestCreateItemRejectsInvalidURL(t *testing.T) {
+	srv := newTestServer()
+	req := httptest.NewRequest(http.MethodPost, "/items", bytes.NewBufferString(`{"name":"bad url","url":"not-a-url"}`))
 	rec := httptest.NewRecorder()
 
 	srv.ServeHTTP(rec, req)
@@ -146,7 +198,10 @@ func TestCreateItemRejectsInvalidJSON(t *testing.T) {
 
 func TestCreateItemAlsoServedUnderAPIPrefix(t *testing.T) {
 	srv := newTestServer()
-	req := httptest.NewRequest(http.MethodPost, "/api/items", bytes.NewBufferString(`{"name":"via api prefix"}`))
+	target := newTestTargetServer(t)
+
+	body := fmt.Sprintf(`{"name":"via api prefix","url":%q}`, target.URL)
+	req := httptest.NewRequest(http.MethodPost, "/api/items", bytes.NewBufferString(body))
 	rec := httptest.NewRecorder()
 
 	srv.ServeHTTP(rec, req)

@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -48,16 +49,46 @@ func (s *MemoryStore) ListItems(_ context.Context) ([]Item, error) {
 }
 
 // CreateItem implements Store.
-func (s *MemoryStore) CreateItem(_ context.Context, name string) (Item, error) {
+func (s *MemoryStore) CreateItem(_ context.Context, name, url string) (Item, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	item := Item{
 		ID:        s.nextID,
 		Name:      name,
+		URL:       url,
 		CreatedAt: time.Now().UTC(),
 	}
 	s.nextID++
 	s.items = append(s.items, item)
 	return item, nil
+}
+
+// SaveCheckResult implements Store.
+func (s *MemoryStore) SaveCheckResult(_ context.Context, itemID int64, result CheckResult) (Item, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for i := range s.items {
+		if s.items[i].ID != itemID {
+			continue
+		}
+
+		now := time.Now().UTC()
+		status, httpStatus, latency := result.Status, result.HTTPStatus, result.LatencyMS
+		s.items[i].LastStatus = &status
+		s.items[i].LastHTTPStatus = &httpStatus
+		s.items[i].LastLatencyMS = &latency
+		s.items[i].LastCheckedAt = &now
+		s.items[i].TLSDaysRemaining = result.TLSDaysRemaining
+		if result.Error != "" {
+			errCopy := result.Error
+			s.items[i].LastError = &errCopy
+		} else {
+			s.items[i].LastError = nil
+		}
+		return s.items[i], nil
+	}
+
+	return Item{}, fmt.Errorf("item %d not found", itemID)
 }

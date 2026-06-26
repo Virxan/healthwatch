@@ -1,13 +1,21 @@
 # Healthwatch
 
-A small CRUD application: a Go + PostgreSQL backend exposing `items`,
-fronted by a Vue 3 + Tailwind UI. Built as an SDLC tooling exercise -
-reproducible dev shell (Nix), a Taskfile that exposes every action,
-git hooks (lefthook + gitleaks), a distroless/non-root container built
-with Nix, supply-chain checks (Syft + Grype), tests at four levels (Go
-unit, Testcontainers integration, k6, Hurl), a CI pipeline that enforces
-all of it, and a bonus GitOps deployment to a local Kubernetes cluster
-via Argo CD.
+A small website health-check aggregator: a Go + PostgreSQL backend that
+watches a list of URLs (the "items") for reachability, latency and TLS
+certificate expiry, fronted by a Vue 3 + Tailwind dashboard. Built as an
+SDLC tooling exercise - reproducible dev shell (Nix), a Taskfile that
+exposes every action, git hooks (lefthook + gitleaks), a distroless/
+non-root container built with Nix, supply-chain checks (Syft + Grype),
+tests at four levels (Go unit, Testcontainers integration, k6, Hurl), a
+CI pipeline that enforces all of it, and a bonus GitOps deployment to a
+local Kubernetes cluster via Argo CD.
+
+The `items` table and the `GET/POST /items` routes are deliberately
+literal matches for the brief's CRUD requirement - what makes this
+Healthwatch rather than a generic todo list is that creating an item
+(`name` + `url`) immediately checks the URL over HTTP(S), and a
+background scheduler re-checks every item every 30s, persisting status,
+latency and TLS expiry back onto the same row.
 
 ## Architecture
 
@@ -196,9 +204,9 @@ framework needed at this size).
 
 | Method | Path                  | Also at  | Description                          |
 | ------ | --------------------- | -------- | ------------------------------------- |
-| GET    | `/health`             | `/api/health` | `{"status":"ok"}` or 503 `{"status":"down","error":"..."}` |
-| GET    | `/items`              | `/api/items`   | All items, JSON array                 |
-| POST   | `/items`              | `/api/items`   | `{"name":"..."}` → 201 with the created item, or 400 if name is empty |
+| GET    | `/health`             | `/api/health` | `{"status":"ok"}` or 503 `{"status":"down","error":"..."}` - pings the database, not the watched sites |
+| GET    | `/items`              | `/api/items`   | All watched sites, with their latest check result, JSON array |
+| POST   | `/items`              | `/api/items`   | `{"name":"...","url":"https://..."}` → 201 with the created item (already checked once), or 400 if name/url is missing or url isn't a valid http(s) URL |
 | GET    | `/*`                  | -        | The built Vue frontend                |
 
 Routes are registered at both the bare path and under `/api/` so the
@@ -206,12 +214,20 @@ exact same frontend code (`fetch('/api/items')`) works unmodified
 whether Vite is proxying in dev or Go is serving everything in prod -
 see `backend/handlers.go`.
 
+Every item also carries `last_status`, `last_http_status`,
+`last_latency_ms`, `last_checked_at`, `tls_days_remaining` and
+`last_error` once it's been checked at least once (all `null`/omitted
+before that - which only lasts a moment, since creating an item checks
+it immediately).
+
 ## Project layout
 
 ```text
 backend/
   main.go, main_test.go      entrypoint + handler unit tests (MemoryStore)
   handlers.go, web.go        HTTP routes, embedded frontend
+  checker.go, checker_test.go    one HTTP+TLS check
+  scheduler.go, scheduler_test.go    re-checks every item every 30s
   db/                        Store interface, PGStore (pgx), MemoryStore
   tests/integration/         Testcontainers, real Postgres (-tags integration)
   tests/k6/, tests/hurl/     load test, API contract test

@@ -16,13 +16,15 @@ jsonpath "$" exists
 POST {{base_url}}/items
 Content-Type: application/json
 {
-  "name": "hurl test item"
+  "name": "hurl test item",
+  "url": "https://example.com"
 }
 HTTP 201
 [Captures]
 created_id: jsonpath "$.id"
 [Asserts]
 jsonpath "$.name" == "hurl test item"
+jsonpath "$.url" == "https://example.com"
 jsonpath "$.id" isInteger
 jsonpath "$.created_at" exists
 
@@ -36,7 +38,8 @@ jsonpath "$[*].id" contains {{created_id}}
 POST {{base_url}}/items
 Content-Type: application/json
 {
-  "name": "   "
+  "name": "   ",
+  "url": "https://example.com"
 }
 HTTP 400
 
@@ -44,6 +47,15 @@ HTTP 400
 POST {{base_url}}/items
 Content-Type: application/json
 {
-  "name": ""
+  "name": "no url"
+}
+HTTP 400
+
+
+POST {{base_url}}/items
+Content-Type: application/json
+{
+  "name": "bad url",
+  "url": "not-a-url"
 }
 HTTP 400

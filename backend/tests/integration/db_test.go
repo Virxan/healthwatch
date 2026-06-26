@@ -56,15 +56,21 @@ func TestPGStoreAgainstRealPostgres(t *testing.T) {
 	})
 
 	t.Run("CreateItem then ListItems round-trips through real Postgres", func(t *testing.T) {
-		created, err := store.CreateItem(ctx, "integration test item")
+		created, err := store.CreateItem(ctx, "integration test item", "https://example.com")
 		if err != nil {
 			t.Fatalf("CreateItem() error = %v", err)
 		}
 		if created.ID == 0 {
 			t.Error("created.ID is zero, want a non-zero ID assigned by Postgres")
 		}
+		if created.URL != "https://example.com" {
+			t.Errorf("created.URL = %q, want %q", created.URL, "https://example.com")
+		}
 		if created.CreatedAt.IsZero() {
 			t.Error("created.CreatedAt is zero, want a timestamp set by Postgres' default now()")
+		}
+		if created.LastStatus != nil {
+			t.Errorf("created.LastStatus = %v, want nil before any check has run", *created.LastStatus)
 		}
 
 		items, err := store.ListItems(ctx)
@@ -80,6 +86,37 @@ func TestPGStoreAgainstRealPostgres(t *testing.T) {
 		}
 		if !found {
 			t.Errorf("created item not found in ListItems(): %+v", items)
+		}
+	})
+
+	t.Run("SaveCheckResult persists status, latency and TLS days remaining", func(t *testing.T) {
+		created, err := store.CreateItem(ctx, "checked item", "https://example.com")
+		if err != nil {
+			t.Fatalf("CreateItem() error = %v", err)
+		}
+
+		days := 30
+		updated, err := store.SaveCheckResult(ctx, created.ID, db.CheckResult{
+			Status:           "up",
+			HTTPStatus:       200,
+			LatencyMS:        42,
+			TLSDaysRemaining: &days,
+		})
+		if err != nil {
+			t.Fatalf("SaveCheckResult() error = %v", err)
+		}
+
+		if updated.LastStatus == nil || *updated.LastStatus != "up" {
+			t.Errorf("LastStatus = %v, want \"up\"", updated.LastStatus)
+		}
+		if updated.LastHTTPStatus == nil || *updated.LastHTTPStatus != 200 {
+			t.Errorf("LastHTTPStatus = %v, want 200", updated.LastHTTPStatus)
+		}
+		if updated.TLSDaysRemaining == nil || *updated.TLSDaysRemaining != 30 {
+			t.Errorf("TLSDaysRemaining = %v, want 30", updated.TLSDaysRemaining)
+		}
+		if updated.LastCheckedAt == nil {
+			t.Error("LastCheckedAt is nil, want a timestamp set by Postgres' now()")
 		}
 	})
 

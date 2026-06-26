@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"healthwatch/backend/db"
@@ -12,20 +13,22 @@ import (
 // Server wires the Store to HTTP routes and to the embedded frontend
 // build.
 type Server struct {
-	store    db.Store
-	mux      *http.ServeMux
-	frontend http.Handler
+	store     db.Store
+	scheduler *Scheduler
+	mux       *http.ServeMux
+	frontend  http.Handler
 }
 
 // NewServer builds a Server. frontend is the embedded, already-built
 // Vue app (see web.go) - in production Go serves it directly; nothing
 // stops you from running the frontend separately via Vite in dev
 // instead (see vite.config.js's proxy).
-func NewServer(store db.Store, frontend fs.FS) *Server {
+func NewServer(store db.Store, scheduler *Scheduler, frontend fs.FS) *Server {
 	s := &Server{
-		store:    store,
-		mux:      http.NewServeMux(),
-		frontend: http.FileServerFS(frontend),
+		store:     store,
+		scheduler: scheduler,
+		mux:       http.NewServeMux(),
+		frontend:  http.FileServerFS(frontend),
 	}
 	s.routes()
 	return s
@@ -50,6 +53,9 @@ func (s *Server) routes() {
 	s.mux.Handle("GET /", s.frontend)
 }
 
+// handleHealth reports on the backend process itself (can it reach its
+// own database) - not on the websites tracked in "items". See
+// handleListItems for those.
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	if err := s.store.Ping(r.Context()); err != nil {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{
@@ -72,6 +78,7 @@ func (s *Server) handleListItems(w http.ResponseWriter, r *http.Request) {
 
 type createItemRequest struct {
 	Name string `json:"name"`
+	URL  string `json:"url"`
 }
 
 func (s *Server) handleCreateItem(w http.ResponseWriter, r *http.Request) {
@@ -87,13 +94,42 @@ func (s *Server) handleCreateItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	item, err := s.store.CreateItem(r.Context(), name)
+	targetURL := strings.TrimSpace(req.URL)
+	if err := validateURL(targetURL); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	item, err := s.store.CreateItem(r.Context(), name, targetURL)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
+
+	// Check it once immediately so the dashboard shows a real status
+	// right away, instead of "not yet checked" until the next
+	// scheduler tick.
+	if checked, err := s.scheduler.CheckOne(r.Context(), item); err == nil {
+		item = checked
+	}
+
 	writeJSON(w, http.StatusCreated, item)
 }
+
+func validateURL(raw string) error {
+	if raw == "" {
+		return errInvalidURL("url is required")
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return errInvalidURL("url must be a valid http:// or https:// URL")
+	}
+	return nil
+}
+
+type errInvalidURL string
+
+func (e errInvalidURL) Error() string { return string(e) }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {
 	w.Header().Set("Content-Type", "application/json")

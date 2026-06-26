@@ -1,5 +1,7 @@
 // Command backend is the Healthwatch API: a small CRUD service backed by
-// PostgreSQL, serving its own Vue frontend build in production.
+// PostgreSQL that watches a list of websites (the "items") for
+// reachability, latency and TLS certificate expiry, serving its own
+// Vue frontend build in production.
 package main
 
 import (
@@ -14,6 +16,12 @@ import (
 
 	"healthwatch/backend/db"
 )
+
+// checkInterval is how often every item gets re-checked.
+const checkInterval = 30 * time.Second
+
+// checkTimeout bounds how long a single item's check may take.
+const checkTimeout = 5 * time.Second
 
 func main() {
 	addr := flag.String("addr", ":8080", "address to listen on")
@@ -43,9 +51,13 @@ func run(addr string, logger *slog.Logger) error {
 	}
 	defer store.Close()
 
+	checker := NewChecker(checkTimeout)
+	scheduler := NewScheduler(store, checker, checkTimeout, logger)
+	go scheduler.Run(ctx, checkInterval)
+
 	httpServer := &http.Server{
 		Addr:    addr,
-		Handler: NewServer(store, frontendFS()),
+		Handler: NewServer(store, scheduler, frontendFS()),
 		// Without this, a client that trickles request headers in slowly
 		// can tie up a connection indefinitely (Slowloris).
 		ReadHeaderTimeout: 5 * time.Second,

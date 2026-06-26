@@ -23,7 +23,10 @@ export default function () {
 
   const created = http.post(
     `${BASE_URL}/items`,
-    JSON.stringify({ name: `bench-item-${__VU}-${__ITER}-${Date.now()}` }),
+    JSON.stringify({
+      name: `bench-item-${__VU}-${__ITER}-${Date.now()}`,
+      url: "https://example.com",
+    }),
     { headers: { "Content-Type": "application/json" } },
   );
   check(created, { "create item is 201": (r) => r.status === 201 });
