@@ -30,7 +30,7 @@ jsonpath "$.created_at" exists
 GET {{base_url}}/items
 HTTP 200
 [Asserts]
-jsonpath "$[*].id" includes {{created_id}}
+jsonpath "$[*].id" contains {{created_id}}
 
 
 POST {{base_url}}/items
