@@ -12,7 +12,7 @@
 
     # First build fails with the expected hash printed in the error -
     # paste it in here once package-lock.json is stable.
-    npmDepsHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+    npmDepsHash = "sha256-mS4KPD9I/YotGQW6D+B5NDl7ZqRVhHpbBPCN8r7N/u8=";
 
     buildPhase = ''
       runHook preBuild
@@ -44,7 +44,7 @@ in
     src = backendSrc;
 
     # Same deal as npmDepsHash above: first build prints the real hash.
-    vendorHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+    vendorHash = "sha256-+twj0uHxCAOagiUifXQCFEyCGXmpGp6hwS8vFT2onA4=";
 
     env.CGO_ENABLED = "0";
     ldflags = ["-s" "-w"];
