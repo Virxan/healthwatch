@@ -10,12 +10,15 @@ tests at four levels (Go unit, Testcontainers integration, k6, Hurl), a
 CI pipeline that enforces all of it, and a bonus GitOps deployment to a
 local Kubernetes cluster via Argo CD.
 
-The `items` table and the `GET/POST /items` routes are deliberately
-literal matches for the brief's CRUD requirement - what makes this
-Healthwatch rather than a generic todo list is that creating an item
-(`name` + `url`) immediately checks the URL over HTTP(S), and a
+The `items` table and the `GET/POST/DELETE /items` routes are
+deliberately literal matches for the brief's CRUD requirement - what
+makes this Healthwatch rather than a generic todo list is that creating
+an item (`name` + `url`) immediately checks the URL over HTTP(S), and a
 background scheduler re-checks every item every 30s, persisting status,
-latency and TLS expiry back onto the same row.
+latency and TLS expiry back onto the same row. The dashboard adds live
+search, status filters, summary stats, per-row and bulk delete, a dark
+theme, and a `task seed` that loads ~125 demo sites with a realistic
+up/down mix.
 
 ## Architecture
 
@@ -106,21 +109,42 @@ nix develop      # one command, full toolchain (go, node, k3d, task, hurl, k6...
 task             # list every available task
 ```
 
-`backend/go.sum` isn't committed yet - generate it once, with your
-machine's real internet access:
+`backend/go.sum` is committed, so `nix develop` and every build step
+work straight away. You only need to regenerate it if you change Go
+dependencies:
 
 ```sh
 cd backend && go mod tidy && cd ..
-git add backend/go.sum && git commit -m "chore: add backend/go.sum"
 ```
 
 ### 1. Run it locally
 
 ```sh
 task db          # starts Postgres via docker-compose
+task seed        # optional: ~125 demo sites with a realistic up/down mix
 task build-frontend
 task run         # http://localhost:8080
 ```
+
+`task seed` is idempotent (it clears the table first), so you can re-run
+it any time to get back to a clean, populated dashboard. It picks URLs
+that settle fast - real, reliable sites resolve "up", `*.invalid` hosts
+fail DNS instantly and settle "down" - so the 30s scheduler sweep never
+saturates a small VM with slow timeouts.
+
+The Go binary embeds the built frontend at compile time (`go:embed`), so
+after `task build-frontend` you must restart `task run` for the new
+build to be served. For iterating on the UI, skip that loop and run
+Vite's dev server instead - it hot-reloads and proxies `/api/*` to the
+backend on `:8080`:
+
+```sh
+cd frontend && npm install && npm run dev   # http://localhost:5173
+```
+
+Reaching the dashboard from another machine (e.g. a VM accessed from the
+host) may need the port opened in the firewall, e.g. on RHEL-family
+distros: `sudo firewall-cmd --add-port=8080/tcp --permanent && sudo firewall-cmd --reload`.
 
 ### 2. Test
 
@@ -139,11 +163,13 @@ task lint
 task container
 ```
 
-First `task container` on a given machine fails once on purpose, with a
-message like `error: hash mismatch ... got: sha256-XXXX...` - that's Nix
-telling you the real hash of `frontend/package-lock.json` and
-`backend/go.sum`. Paste the two `got:` hashes into `nix/package.nix`'s
-`npmDepsHash` and `vendorHash`, then run it again.
+`nix/package.nix` already carries the real `npmDepsHash` and
+`vendorHash`, so `task container` builds out of the box. If you ever
+change dependencies (`frontend/package-lock.json` or `backend/go.sum`),
+the build fails with a message like `error: hash mismatch ... got:
+sha256-XXXX...` - that's Nix telling you the new hash. Paste the two
+`got:` values back into `nix/package.nix`'s `npmDepsHash` and
+`vendorHash`, then run it again.
 
 ```sh
 task sbom
@@ -207,6 +233,8 @@ framework needed at this size).
 | GET    | `/health`             | `/api/health` | `{"status":"ok"}` or 503 `{"status":"down","error":"..."}` - pings the database, not the watched sites |
 | GET    | `/items`              | `/api/items`   | All watched sites, with their latest check result, JSON array |
 | POST   | `/items`              | `/api/items`   | `{"name":"...","url":"https://..."}` → 201 with the created item (already checked once), or 400 if name/url is missing or url isn't a valid http(s) URL |
+| DELETE | `/items`              | `/api/items`   | Remove every watched site at once (the dashboard's "vider la base") → 200 `{"deleted":N}` |
+| DELETE | `/items/{id}`         | `/api/items/{id}` | Remove a single watched site (per-row trash button) → 204, or 404 if no item has that id, or 400 if the id isn't an integer |
 | GET    | `/*`                  | -        | The built Vue frontend                |
 
 Routes are registered at both the bare path and under `/api/` so the
@@ -229,6 +257,7 @@ backend/
   checker.go, checker_test.go    one HTTP+TLS check
   scheduler.go, scheduler_test.go    re-checks every item every 30s
   db/                        Store interface, PGStore (pgx), MemoryStore
+  db/seed.sql                ~125 demo sites, loaded by `task seed`
   tests/integration/         Testcontainers, real Postgres (-tags integration)
   tests/k6/, tests/hurl/     load test, API contract test
   web/dist/                  Vite build output lands here (go:embed target)
@@ -257,19 +286,18 @@ forced by a real constraint rather than taste:
   `postcss.config.js` with a CSS-first setup, which would make two
   explicitly required files redundant. Pinned to v3 specifically so
   those two files keep doing real work.
-- **`go 1.23` in `go.mod`, `go` (unpinned) in `nix/dev-shell.nix`**:
-  pinning the dev shell to an exact `go_1_23` package is what breaks the
+- **`go 1.25` in `go.mod`, `go` (unpinned) in `nix/dev-shell.nix`**:
+  pinning the dev shell to an exact `go_1_25` package is what breaks the
   moment that version goes end-of-life and gets removed from nixpkgs (it
   already has, once, during this project's lifetime) - the unpinned
   `go` attribute always tracks whatever's current, while `go.mod`'s `go
-  1.23` directive still declares the minimum language version like the
+  1.25` directive still declares the minimum language version like the
   brief asks. A newer toolchain happily builds an older `go` directive.
 - **No `.yamllint.yaml`**: dropped - there's no `lint-yaml` task in the
   required list, so a config for a linter nothing calls would just be
   clutter.
-- **No committed `backend/go.sum` yet**: generated in an environment
-  with full internet access (the [Quick start](#quick-start) above has
-  the one-time command) - `testcontainers-go`'s dependency tree is deep
-  enough that producing one elsewhere wasn't reliable. Commit it once
-  it exists; from then on it behaves like any other Go project's
-  go.sum.
+- **`backend/go.sum` is committed**: it was generated in an environment
+  with full internet access, because `testcontainers-go`'s dependency
+  tree is deep enough that producing one inside a restricted sandbox
+  wasn't reliable. Regenerate it with `go mod tidy` only when you change
+  dependencies; otherwise it behaves like any other Go project's go.sum.
