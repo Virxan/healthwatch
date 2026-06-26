@@ -64,6 +64,11 @@ async function clearAll() {
   }
 }
 
+async function deleteItem(id) {
+  await fetch(`/api/items/${id}`, { method: "DELETE" });
+  await fetchItems();
+}
+
 function itemStatus(item) {
   if (!item.last_checked_at) return "checking";
   return item.last_status === "up" ? "up" : "down";
@@ -354,6 +359,9 @@ onUnmounted(() => {
               <th class="px-4 py-3 font-medium">
                 Dernier check
               </th>
+              <th class="px-4 py-3 font-medium">
+                <span class="sr-only">Actions</span>
+              </th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-800">
@@ -402,6 +410,30 @@ onUnmounted(() => {
               </td>
               <td class="px-4 py-3 text-xs text-slate-500">
                 {{ formatChecked(item) }}
+              </td>
+              <td class="px-4 py-3 text-right">
+                <button
+                  type="button"
+                  class="rounded-md p-1.5 text-slate-500 transition hover:bg-rose-500/10 hover:text-rose-400"
+                  aria-label="Supprimer ce site"
+                  @click="deleteItem(item.id)"
+                >
+                  <svg
+                    class="h-4 w-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M4 7h16" />
+                    <path d="M10 11v6" />
+                    <path d="M14 11v6" />
+                    <path d="M6 7l1 13h10l1-13" />
+                    <path d="M9 7V4h6v3" />
+                  </svg>
+                </button>
               </td>
             </tr>
           </tbody>

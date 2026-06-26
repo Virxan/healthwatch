@@ -57,4 +57,7 @@ type Store interface {
 	// DeleteAllItems removes every item and returns how many were deleted.
 	// Used by DELETE /items to reset the dashboard.
 	DeleteAllItems(ctx context.Context) (int64, error)
+	// DeleteItem removes a single item by id and reports whether a row was
+	// actually deleted (false means no item had that id).
+	DeleteItem(ctx context.Context, id int64) (bool, error)
 }

@@ -102,3 +102,17 @@ func (s *MemoryStore) DeleteAllItems(_ context.Context) (int64, error) {
 	s.items = nil
 	return n, nil
 }
+
+// DeleteItem implements Store.
+func (s *MemoryStore) DeleteItem(_ context.Context, id int64) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for i := range s.items {
+		if s.items[i].ID == id {
+			s.items = append(s.items[:i], s.items[i+1:]...)
+			return true, nil
+		}
+	}
+	return false, nil
+}

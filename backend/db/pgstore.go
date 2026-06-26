@@ -161,3 +161,12 @@ func (s *PGStore) DeleteAllItems(ctx context.Context) (int64, error) {
 	}
 	return tag.RowsAffected(), nil
 }
+
+// DeleteItem implements Store.
+func (s *PGStore) DeleteItem(ctx context.Context, id int64) (bool, error) {
+	tag, err := s.pool.Exec(ctx, `DELETE FROM items WHERE id = $1`, id)
+	if err != nil {
+		return false, fmt.Errorf("deleting item %d: %w", id, err)
+	}
+	return tag.RowsAffected() > 0, nil
+}
