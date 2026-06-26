@@ -101,17 +101,17 @@ const filteredItems = computed(() => {
 
 function latencyClass(item) {
   const ms = item.last_latency_ms;
-  if (ms == null) return "text-slate-400";
-  if (ms < 100) return "text-emerald-600";
-  if (ms < 300) return "text-amber-600";
-  return "text-rose-600";
+  if (ms == null) return "text-slate-500";
+  if (ms < 100) return "text-emerald-400";
+  if (ms < 300) return "text-amber-400";
+  return "text-rose-400";
 }
 
 function tlsClass(days) {
-  if (days == null) return "text-slate-400";
-  if (days < 14) return "text-rose-600";
-  if (days < 30) return "text-amber-600";
-  return "text-slate-500";
+  if (days == null) return "text-slate-500";
+  if (days < 14) return "text-rose-400";
+  if (days < 30) return "text-amber-400";
+  return "text-slate-400";
 }
 
 function formatLatency(item) {
@@ -154,11 +154,11 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-50 text-slate-900">
+  <div class="min-h-screen bg-slate-950 text-slate-100">
     <div class="mx-auto max-w-5xl space-y-6 px-4 py-10">
       <header class="flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <div class="grid h-10 w-10 place-items-center rounded-xl bg-slate-900 text-white">
+          <div class="grid h-10 w-10 place-items-center rounded-xl bg-white text-slate-900">
             <svg
               class="h-5 w-5"
               viewBox="0 0 24 24"
@@ -172,10 +172,10 @@ onUnmounted(() => {
             </svg>
           </div>
           <div>
-            <h1 class="text-xl font-semibold leading-tight">
+            <h1 class="text-xl font-semibold leading-tight text-white">
               Healthwatch
             </h1>
-            <p class="text-sm text-slate-500">
+            <p class="text-sm text-slate-400">
               {{ items.length }} site(s) · vérifié toutes les 30s
             </p>
           </div>
@@ -183,9 +183,9 @@ onUnmounted(() => {
         <span
           class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium"
           :class="{
-            'bg-emerald-100 text-emerald-700': health.status === 'ok',
-            'bg-rose-100 text-rose-700': health.status === 'down',
-            'bg-slate-200 text-slate-600': health.status === 'checking',
+            'bg-emerald-500/15 text-emerald-400': health.status === 'ok',
+            'bg-rose-500/15 text-rose-400': health.status === 'down',
+            'bg-slate-800 text-slate-400': health.status === 'checking',
           }"
         >
           <span class="h-2 w-2 rounded-full bg-current" />
@@ -194,67 +194,67 @@ onUnmounted(() => {
       </header>
 
       <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <div class="rounded-xl border border-slate-200 bg-white p-4">
-          <p class="text-xs text-slate-500">
+        <div class="rounded-xl border border-slate-800 bg-slate-900 p-4">
+          <p class="text-xs text-slate-400">
             Total surveillé
           </p>
-          <p class="mt-1 text-2xl font-semibold">
+          <p class="mt-1 text-2xl font-semibold text-white">
             {{ items.length }}
           </p>
         </div>
-        <div class="rounded-xl border border-slate-200 bg-white p-4">
-          <p class="text-xs text-slate-500">
+        <div class="rounded-xl border border-slate-800 bg-slate-900 p-4">
+          <p class="text-xs text-slate-400">
             En ligne
           </p>
-          <p class="mt-1 text-2xl font-semibold text-emerald-600">
+          <p class="mt-1 text-2xl font-semibold text-emerald-400">
             {{ upCount }}
           </p>
         </div>
-        <div class="rounded-xl border border-slate-200 bg-white p-4">
-          <p class="text-xs text-slate-500">
+        <div class="rounded-xl border border-slate-800 bg-slate-900 p-4">
+          <p class="text-xs text-slate-400">
             Hors ligne
           </p>
-          <p class="mt-1 text-2xl font-semibold text-rose-600">
+          <p class="mt-1 text-2xl font-semibold text-rose-400">
             {{ downCount }}
           </p>
         </div>
-        <div class="rounded-xl border border-slate-200 bg-white p-4">
-          <p class="text-xs text-slate-500">
+        <div class="rounded-xl border border-slate-800 bg-slate-900 p-4">
+          <p class="text-xs text-slate-400">
             Latence moyenne
           </p>
-          <p class="mt-1 text-2xl font-semibold">
+          <p class="mt-1 text-2xl font-semibold text-white">
             {{ avgLatency != null ? avgLatency + " ms" : "—" }}
           </p>
         </div>
       </div>
 
       <form
-        class="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-4"
+        class="flex flex-wrap gap-2 rounded-xl border border-slate-800 bg-slate-900 p-4"
         @submit.prevent="createItem"
       >
         <input
           v-model="newItemName"
           type="text"
           placeholder="Label (ex. Mon blog)"
-          class="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+          class="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-700"
         >
         <input
           v-model="newItemUrl"
           type="text"
           placeholder="https://example.com"
-          class="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+          class="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-700"
         >
         <button
           type="submit"
           :disabled="creating"
-          class="rounded-lg bg-slate-900 px-5 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-50"
+          class="rounded-lg bg-white px-5 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-200 disabled:opacity-50"
         >
           {{ creating ? "Vérification..." : "Ajouter" }}
         </button>
       </form>
       <p
         v-if="createError"
-        class="-mt-3 text-sm text-rose-600"
+        class="-mt-3 text-sm text-rose-400"
       >
         {{ createError }}
       </p>
@@ -262,7 +262,7 @@ onUnmounted(() => {
       <div class="flex flex-wrap items-center gap-2">
         <div class="relative min-w-0 flex-1">
           <svg
-            class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+            class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -281,14 +281,14 @@ onUnmounted(() => {
             v-model="search"
             type="text"
             placeholder="Rechercher un site..."
-            class="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+            class="w-full rounded-lg border border-slate-700 bg-slate-900 py-2 pl-9 pr-3 text-sm text-slate-100 placeholder-slate-500 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-700"
           >
         </div>
-        <div class="flex rounded-lg border border-slate-200 bg-white p-1">
+        <div class="flex rounded-lg border border-slate-800 bg-slate-900 p-1">
           <button
             type="button"
             class="rounded-md px-3 py-1 text-sm transition"
-            :class="statusFilter === 'all' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'"
+            :class="statusFilter === 'all' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-800'"
             @click="statusFilter = 'all'"
           >
             Tous
@@ -296,7 +296,7 @@ onUnmounted(() => {
           <button
             type="button"
             class="rounded-md px-3 py-1 text-sm transition"
-            :class="statusFilter === 'up' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'"
+            :class="statusFilter === 'up' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-800'"
             @click="statusFilter = 'up'"
           >
             En ligne
@@ -304,7 +304,7 @@ onUnmounted(() => {
           <button
             type="button"
             class="rounded-md px-3 py-1 text-sm transition"
-            :class="statusFilter === 'down' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'"
+            :class="statusFilter === 'down' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-800'"
             @click="statusFilter = 'down'"
           >
             Hors ligne
@@ -313,14 +313,14 @@ onUnmounted(() => {
         <button
           type="button"
           :disabled="items.length === 0"
-          class="rounded-lg border border-rose-200 px-3 py-2 text-sm font-medium text-rose-600 transition hover:bg-rose-50 disabled:opacity-40"
+          class="rounded-lg border border-rose-500/40 px-3 py-2 text-sm font-medium text-rose-400 transition hover:bg-rose-500/10 disabled:opacity-40"
           @click="showClearConfirm = true"
         >
           Vider la base
         </button>
       </div>
 
-      <div class="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div class="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
         <p
           v-if="loading"
           class="p-6 text-center text-sm text-slate-500"
@@ -338,7 +338,7 @@ onUnmounted(() => {
           class="w-full text-sm"
         >
           <thead>
-            <tr class="border-b border-slate-100 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-400">
+            <tr class="border-b border-slate-800 text-left text-xs uppercase tracking-wide text-slate-500">
               <th class="px-4 py-3 font-medium">
                 Site
               </th>
@@ -356,21 +356,21 @@ onUnmounted(() => {
               </th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-100">
+          <tbody class="divide-y divide-slate-800">
             <tr
               v-for="item in filteredItems"
               :key="item.id"
-              class="transition-colors hover:bg-slate-50"
+              class="transition-colors hover:bg-slate-800/50"
             >
               <td class="px-4 py-3">
-                <div class="font-medium text-slate-900">
+                <div class="font-medium text-white">
                   {{ item.name }}
                 </div>
                 <a
                   :href="item.url"
                   target="_blank"
                   rel="noopener"
-                  class="text-xs text-slate-400 hover:underline"
+                  class="text-xs text-slate-500 hover:text-slate-300 hover:underline"
                 >
                   {{ item.url }}
                 </a>
@@ -379,9 +379,9 @@ onUnmounted(() => {
                 <span
                   class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
                   :class="{
-                    'bg-emerald-100 text-emerald-700': itemStatus(item) === 'up',
-                    'bg-rose-100 text-rose-700': itemStatus(item) === 'down',
-                    'bg-slate-100 text-slate-500': itemStatus(item) === 'checking',
+                    'bg-emerald-500/15 text-emerald-400': itemStatus(item) === 'up',
+                    'bg-rose-500/15 text-rose-400': itemStatus(item) === 'down',
+                    'bg-slate-800 text-slate-400': itemStatus(item) === 'checking',
                   }"
                 >
                   <span class="h-1.5 w-1.5 rounded-full bg-current" />
@@ -400,7 +400,7 @@ onUnmounted(() => {
               >
                 {{ formatTLS(item) }}
               </td>
-              <td class="px-4 py-3 text-xs text-slate-400">
+              <td class="px-4 py-3 text-xs text-slate-500">
                 {{ formatChecked(item) }}
               </td>
             </tr>
@@ -411,20 +411,20 @@ onUnmounted(() => {
 
     <div
       v-if="showClearConfirm"
-      class="fixed inset-0 z-10 flex items-center justify-center bg-slate-900/40 px-4"
+      class="fixed inset-0 z-10 flex items-center justify-center bg-black/60 px-4"
     >
-      <div class="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-5 shadow-xl">
-        <h2 class="text-lg font-semibold text-slate-900">
+      <div class="w-full max-w-sm rounded-xl border border-slate-800 bg-slate-900 p-5 shadow-xl">
+        <h2 class="text-lg font-semibold text-white">
           Vider la base ?
         </h2>
-        <p class="mt-2 text-sm text-slate-500">
+        <p class="mt-2 text-sm text-slate-400">
           Cette action supprime définitivement les {{ items.length }} site(s)
           surveillé(s). Elle est irréversible.
         </p>
         <div class="mt-5 flex justify-end gap-2">
           <button
             type="button"
-            class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+            class="rounded-lg border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 transition hover:bg-slate-800"
             @click="showClearConfirm = false"
           >
             Annuler
