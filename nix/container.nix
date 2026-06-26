@@ -1,5 +1,7 @@
-{ pkgs, backendPackage }:
-
+{
+  pkgs,
+  backendPackage,
+}:
 pkgs.dockerTools.buildLayeredImage {
   name = "healthwatch-backend";
   tag = "latest";
@@ -15,13 +17,13 @@ pkgs.dockerTools.buildLayeredImage {
   ];
 
   config = {
-    Entrypoint = [ "/bin/backend" ];
+    Entrypoint = ["/bin/backend"];
     # Required by the CDC: numeric UID 1000, not the distroless
     # convention's 65532 - no /etc/passwd entry needed either way since
     # this is a static Go binary that never calls getpwuid.
     User = "1000:1000";
     ExposedPorts = {
-      "8080/tcp" = { };
+      "8080/tcp" = {};
     };
   };
 }

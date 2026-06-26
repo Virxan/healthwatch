@@ -1,6 +1,4 @@
-{ pkgs }:
-
-let
+{pkgs}: let
   # Built in isolation from the backend - vite.config.js's outDir
   # ("../backend/web/dist") is a local-dev convenience and doesn't exist
   # inside this sandboxed derivation, so --outDir overrides it back to a
@@ -32,7 +30,7 @@ let
 
   # The backend's own source tree, but with web/dist replaced by the
   # real frontend build instead of the committed placeholder.
-  backendSrc = pkgs.runCommand "healthwatch-backend-src" { } ''
+  backendSrc = pkgs.runCommand "healthwatch-backend-src" {} ''
     cp -r ${../backend} "$out"
     chmod -R u+w "$out"
     rm -rf "$out/web/dist"
@@ -40,22 +38,22 @@ let
     cp -r ${frontend}/. "$out/web/dist/"
   '';
 in
-pkgs.buildGoModule {
-  pname = "healthwatch-backend";
-  version = "0.1.0";
-  src = backendSrc;
+  pkgs.buildGoModule {
+    pname = "healthwatch-backend";
+    version = "0.1.0";
+    src = backendSrc;
 
-  # Same deal as npmDepsHash above: first build prints the real hash.
-  vendorHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+    # Same deal as npmDepsHash above: first build prints the real hash.
+    vendorHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
 
-  env.CGO_ENABLED = "0";
-  ldflags = [ "-s" "-w" ];
+    env.CGO_ENABLED = "0";
+    ldflags = ["-s" "-w"];
 
-  # tests/integration needs Docker (Testcontainers), which isn't
-  # available inside a sandboxed Nix build - it's not part of `nix
-  # build`/`nix flake check`, run it explicitly via `task
-  # test-integration` instead.
-  doCheck = false;
+    # tests/integration needs Docker (Testcontainers), which isn't
+    # available inside a sandboxed Nix build - it's not part of `nix
+    # build`/`nix flake check`, run it explicitly via `task
+    # test-integration` instead.
+    doCheck = false;
 
-  meta.mainProgram = "backend";
-}
+    meta.mainProgram = "backend";
+  }
