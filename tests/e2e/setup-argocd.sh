@@ -16,7 +16,7 @@ kubectl apply --server-side -n "${NAMESPACE}" \
   -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
 echo "==> Waiting for argocd-server to become available"
-kubectl -n "${NAMESPACE}" wait --for=condition=available --timeout=180s deployment/argocd-server
+kubectl -n "${NAMESPACE}" wait --for=condition=available --timeout=300s deployment/argocd-server
 
 echo "==> Argo CD is up. Initial admin password:"
 kubectl -n "${NAMESPACE}" get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d
