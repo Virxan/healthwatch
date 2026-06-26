@@ -152,3 +152,12 @@ func (s *PGStore) SaveCheckResult(ctx context.Context, itemID int64, result Chec
 	}
 	return item, nil
 }
+
+// DeleteAllItems implements Store.
+func (s *PGStore) DeleteAllItems(ctx context.Context) (int64, error) {
+	tag, err := s.pool.Exec(ctx, `DELETE FROM items`)
+	if err != nil {
+		return 0, fmt.Errorf("deleting all items: %w", err)
+	}
+	return tag.RowsAffected(), nil
+}

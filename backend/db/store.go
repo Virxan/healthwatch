@@ -54,4 +54,7 @@ type Store interface {
 	// SaveCheckResult records the outcome of checking an item's URL and
 	// returns the item with the result applied.
 	SaveCheckResult(ctx context.Context, itemID int64, result CheckResult) (Item, error)
+	// DeleteAllItems removes every item and returns how many were deleted.
+	// Used by DELETE /items to reset the dashboard.
+	DeleteAllItems(ctx context.Context) (int64, error)
 }

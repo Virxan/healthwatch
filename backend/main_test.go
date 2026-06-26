@@ -145,6 +145,35 @@ func TestCreateAndListItem(t *testing.T) {
 	}
 }
 
+func TestDeleteAllItems(t *testing.T) {
+	srv := newTestServer()
+	target := newTestTargetServer(t)
+
+	body := fmt.Sprintf(`{"name":"to delete","url":%q}`, target.URL)
+	createReq := httptest.NewRequest(http.MethodPost, "/items", bytes.NewBufferString(body))
+	srv.ServeHTTP(httptest.NewRecorder(), createReq)
+
+	delReq := httptest.NewRequest(http.MethodDelete, "/items", nil)
+	delRec := httptest.NewRecorder()
+	srv.ServeHTTP(delRec, delReq)
+
+	if delRec.Code != http.StatusOK {
+		t.Fatalf("delete status = %d, want 200", delRec.Code)
+	}
+
+	listReq := httptest.NewRequest(http.MethodGet, "/items", nil)
+	listRec := httptest.NewRecorder()
+	srv.ServeHTTP(listRec, listReq)
+
+	var items []db.Item
+	if err := json.Unmarshal(listRec.Body.Bytes(), &items); err != nil {
+		t.Fatalf("list response is not a JSON array: %v", err)
+	}
+	if len(items) != 0 {
+		t.Errorf("len(items) after delete = %d, want 0", len(items))
+	}
+}
+
 func TestCreateItemRejectsEmptyName(t *testing.T) {
 	srv := newTestServer()
 	target := newTestTargetServer(t)

@@ -10,6 +10,8 @@ const creating = ref(false);
 const loading = ref(true);
 const search = ref("");
 const statusFilter = ref("all");
+const clearing = ref(false);
+const showClearConfirm = ref(false);
 let refreshTimer = null;
 
 async function fetchHealth() {
@@ -48,6 +50,17 @@ async function createItem() {
     await fetchItems();
   } finally {
     creating.value = false;
+  }
+}
+
+async function clearAll() {
+  clearing.value = true;
+  try {
+    await fetch("/api/items", { method: "DELETE" });
+    showClearConfirm.value = false;
+    await fetchItems();
+  } finally {
+    clearing.value = false;
   }
 }
 
@@ -112,7 +125,10 @@ function formatTLS(item) {
 function formatChecked(item) {
   if (!item.last_checked_at) return "—";
   const diff = Date.now() - new Date(item.last_checked_at).getTime();
-  const s = Math.round(diff / 1000);
+  // Guard against minor clock skew between the server and this browser,
+  // which would otherwise show a nonsensical "il y a -87s".
+  const s = Math.max(0, Math.round(diff / 1000));
+  if (s < 5) return "à l'instant";
   if (s < 60) return `il y a ${s}s`;
   const m = Math.round(s / 60);
   if (m < 60) return `il y a ${m} min`;
@@ -294,6 +310,14 @@ onUnmounted(() => {
             Hors ligne
           </button>
         </div>
+        <button
+          type="button"
+          :disabled="items.length === 0"
+          class="rounded-lg border border-rose-200 px-3 py-2 text-sm font-medium text-rose-600 transition hover:bg-rose-50 disabled:opacity-40"
+          @click="showClearConfirm = true"
+        >
+          Vider la base
+        </button>
       </div>
 
       <div class="overflow-hidden rounded-xl border border-slate-200 bg-white">
@@ -382,6 +406,38 @@ onUnmounted(() => {
             </tr>
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <div
+      v-if="showClearConfirm"
+      class="fixed inset-0 z-10 flex items-center justify-center bg-slate-900/40 px-4"
+    >
+      <div class="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-5 shadow-xl">
+        <h2 class="text-lg font-semibold text-slate-900">
+          Vider la base ?
+        </h2>
+        <p class="mt-2 text-sm text-slate-500">
+          Cette action supprime définitivement les {{ items.length }} site(s)
+          surveillé(s). Elle est irréversible.
+        </p>
+        <div class="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+            @click="showClearConfirm = false"
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            :disabled="clearing"
+            class="rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-rose-700 disabled:opacity-50"
+            @click="clearAll"
+          >
+            {{ clearing ? "Suppression..." : "Vider la base" }}
+          </button>
+        </div>
       </div>
     </div>
   </div>

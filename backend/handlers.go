@@ -48,6 +48,7 @@ func (s *Server) routes() {
 		s.mux.HandleFunc("GET "+prefix+"/health", s.handleHealth)
 		s.mux.HandleFunc("GET "+prefix+"/items", s.handleListItems)
 		s.mux.HandleFunc("POST "+prefix+"/items", s.handleCreateItem)
+		s.mux.HandleFunc("DELETE "+prefix+"/items", s.handleDeleteItems)
 	}
 
 	s.mux.Handle("GET /", s.frontend)
@@ -114,6 +115,18 @@ func (s *Server) handleCreateItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, item)
+}
+
+// handleDeleteItems removes every watched item at once - the dashboard's
+// "vider la base" action. It is intentionally a bulk reset; there is no
+// per-item delete yet.
+func (s *Server) handleDeleteItems(w http.ResponseWriter, r *http.Request) {
+	deleted, err := s.store.DeleteAllItems(r.Context())
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int64{"deleted": deleted})
 }
 
 func validateURL(raw string) error {
