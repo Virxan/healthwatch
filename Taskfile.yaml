@@ -29,6 +29,12 @@ tasks:
         until docker compose exec db pg_isready -U healthwatch >/dev/null 2>&1;
         do sleep 1; done
 
+  seed:
+    desc: Load ~125 demo sites (realistic up/down mix) into the database
+    deps: [db]
+    cmds:
+      - docker compose exec -T db psql -U healthwatch -d healthwatch < backend/db/seed.sql
+
   build:
     desc: Build the backend binary (static, CGO disabled)
     dir: backend

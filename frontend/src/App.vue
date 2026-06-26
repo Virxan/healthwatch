@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 
 const health = ref({ status: "checking" });
 const items = ref([]);
@@ -8,6 +8,10 @@ const newItemUrl = ref("");
 const createError = ref("");
 const creating = ref(false);
 const loading = ref(true);
+const search = ref("");
+const statusFilter = ref("all");
+const clearing = ref(false);
+const showClearConfirm = ref(false);
 let refreshTimer = null;
 
 async function fetchHealth() {
@@ -49,17 +53,88 @@ async function createItem() {
   }
 }
 
-function statusLabel(item) {
-  if (!item.last_checked_at) return "checking...";
+async function clearAll() {
+  clearing.value = true;
+  try {
+    await fetch("/api/items", { method: "DELETE" });
+    showClearConfirm.value = false;
+    await fetchItems();
+  } finally {
+    clearing.value = false;
+  }
+}
+
+function itemStatus(item) {
+  if (!item.last_checked_at) return "checking";
   return item.last_status === "up" ? "up" : "down";
 }
 
+const upCount = computed(
+  () => items.value.filter((i) => itemStatus(i) === "up").length,
+);
+
+const downCount = computed(
+  () => items.value.filter((i) => itemStatus(i) === "down").length,
+);
+
+const avgLatency = computed(() => {
+  const vals = items.value
+    .map((i) => i.last_latency_ms)
+    .filter((v) => v != null);
+  if (vals.length === 0) return null;
+  return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+});
+
+const filteredItems = computed(() => {
+  const q = search.value.trim().toLowerCase();
+  return items.value.filter((item) => {
+    if (statusFilter.value !== "all" && itemStatus(item) !== statusFilter.value) {
+      return false;
+    }
+    if (!q) return true;
+    return (
+      item.name.toLowerCase().includes(q) ||
+      item.url.toLowerCase().includes(q)
+    );
+  });
+});
+
+function latencyClass(item) {
+  const ms = item.last_latency_ms;
+  if (ms == null) return "text-slate-500";
+  if (ms < 100) return "text-emerald-400";
+  if (ms < 300) return "text-amber-400";
+  return "text-rose-400";
+}
+
+function tlsClass(days) {
+  if (days == null) return "text-slate-500";
+  if (days < 14) return "text-rose-400";
+  if (days < 30) return "text-amber-400";
+  return "text-slate-400";
+}
+
 function formatLatency(item) {
-  return item.last_latency_ms != null ? `${item.last_latency_ms} ms` : "-";
+  return item.last_latency_ms != null ? `${item.last_latency_ms} ms` : "—";
 }
 
 function formatTLS(item) {
-  return item.tls_days_remaining != null ? `${item.tls_days_remaining} days` : "-";
+  return item.tls_days_remaining != null ? `${item.tls_days_remaining} j` : "—";
+}
+
+function formatChecked(item) {
+  if (!item.last_checked_at) return "—";
+  const diff = Date.now() - new Date(item.last_checked_at).getTime();
+  // Guard against minor clock skew between the server and this browser,
+  // which would otherwise show a nonsensical "il y a -87s".
+  const s = Math.max(0, Math.round(diff / 1000));
+  if (s < 5) return "à l'instant";
+  if (s < 60) return `il y a ${s}s`;
+  const m = Math.round(s / 60);
+  if (m < 60) return `il y a ${m} min`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `il y a ${h} h`;
+  return `il y a ${Math.round(h / 24)} j`;
 }
 
 onMounted(async () => {
@@ -79,138 +154,290 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-50 py-10">
-    <div class="mx-auto max-w-3xl space-y-6 px-4">
+  <div class="min-h-screen bg-slate-950 text-slate-100">
+    <div class="mx-auto max-w-5xl space-y-6 px-4 py-10">
       <header class="flex items-center justify-between">
-        <div>
-          <h1 class="text-2xl font-bold text-slate-900">
-            Healthwatch
-          </h1>
-          <p class="text-sm text-slate-500">
-            Watching {{ items.length }} site(s)
-          </p>
+        <div class="flex items-center gap-3">
+          <div class="grid h-10 w-10 place-items-center rounded-xl bg-white text-slate-900">
+            <svg
+              class="h-5 w-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M3 12h4l2 5 4-10 2 5h6" />
+            </svg>
+          </div>
+          <div>
+            <h1 class="text-xl font-semibold leading-tight text-white">
+              Healthwatch
+            </h1>
+            <p class="text-sm text-slate-400">
+              {{ items.length }} site(s) · vérifié toutes les 30s
+            </p>
+          </div>
         </div>
         <span
-          class="rounded-full px-3 py-1 text-sm font-medium"
+          class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium"
           :class="{
-            'bg-green-100 text-green-800': health.status === 'ok',
-            'bg-red-100 text-red-800': health.status === 'down',
-            'bg-slate-200 text-slate-600': health.status === 'checking',
+            'bg-emerald-500/15 text-emerald-400': health.status === 'ok',
+            'bg-rose-500/15 text-rose-400': health.status === 'down',
+            'bg-slate-800 text-slate-400': health.status === 'checking',
           }"
         >
-          {{ health.status === "ok" ? "Healthy" : health.status === "down" ? "Unhealthy" : "Checking..." }}
+          <span class="h-2 w-2 rounded-full bg-current" />
+          {{ health.status === "ok" ? "API healthy" : health.status === "down" ? "API down" : "Connexion..." }}
         </span>
       </header>
 
+      <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div class="rounded-xl border border-slate-800 bg-slate-900 p-4">
+          <p class="text-xs text-slate-400">
+            Total surveillé
+          </p>
+          <p class="mt-1 text-2xl font-semibold text-white">
+            {{ items.length }}
+          </p>
+        </div>
+        <div class="rounded-xl border border-slate-800 bg-slate-900 p-4">
+          <p class="text-xs text-slate-400">
+            En ligne
+          </p>
+          <p class="mt-1 text-2xl font-semibold text-emerald-400">
+            {{ upCount }}
+          </p>
+        </div>
+        <div class="rounded-xl border border-slate-800 bg-slate-900 p-4">
+          <p class="text-xs text-slate-400">
+            Hors ligne
+          </p>
+          <p class="mt-1 text-2xl font-semibold text-rose-400">
+            {{ downCount }}
+          </p>
+        </div>
+        <div class="rounded-xl border border-slate-800 bg-slate-900 p-4">
+          <p class="text-xs text-slate-400">
+            Latence moyenne
+          </p>
+          <p class="mt-1 text-2xl font-semibold text-white">
+            {{ avgLatency != null ? avgLatency + " ms" : "—" }}
+          </p>
+        </div>
+      </div>
+
       <form
-        class="flex flex-wrap gap-2"
+        class="flex flex-wrap gap-2 rounded-xl border border-slate-800 bg-slate-900 p-4"
         @submit.prevent="createItem"
       >
         <input
           v-model="newItemName"
           type="text"
-          placeholder="Label (e.g. My blog)"
-          class="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+          placeholder="Label (ex. Mon blog)"
+          class="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-700"
         >
         <input
           v-model="newItemUrl"
           type="text"
           placeholder="https://example.com"
-          class="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+          class="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-700"
         >
         <button
           type="submit"
           :disabled="creating"
-          class="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+          class="rounded-lg bg-white px-5 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-200 disabled:opacity-50"
         >
-          {{ creating ? "Checking..." : "Add" }}
+          {{ creating ? "Vérification..." : "Ajouter" }}
         </button>
       </form>
       <p
         v-if="createError"
-        class="text-sm text-red-600"
+        class="-mt-3 text-sm text-rose-400"
       >
         {{ createError }}
       </p>
 
-      <div class="overflow-x-auto rounded-md border border-slate-200 bg-white">
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="relative min-w-0 flex-1">
+          <svg
+            class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle
+              cx="11"
+              cy="11"
+              r="7"
+            />
+            <path d="m21 21-4.3-4.3" />
+          </svg>
+          <input
+            v-model="search"
+            type="text"
+            placeholder="Rechercher un site..."
+            class="w-full rounded-lg border border-slate-700 bg-slate-900 py-2 pl-9 pr-3 text-sm text-slate-100 placeholder-slate-500 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-700"
+          >
+        </div>
+        <div class="flex rounded-lg border border-slate-800 bg-slate-900 p-1">
+          <button
+            type="button"
+            class="rounded-md px-3 py-1 text-sm transition"
+            :class="statusFilter === 'all' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-800'"
+            @click="statusFilter = 'all'"
+          >
+            Tous
+          </button>
+          <button
+            type="button"
+            class="rounded-md px-3 py-1 text-sm transition"
+            :class="statusFilter === 'up' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-800'"
+            @click="statusFilter = 'up'"
+          >
+            En ligne
+          </button>
+          <button
+            type="button"
+            class="rounded-md px-3 py-1 text-sm transition"
+            :class="statusFilter === 'down' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-800'"
+            @click="statusFilter = 'down'"
+          >
+            Hors ligne
+          </button>
+        </div>
+        <button
+          type="button"
+          :disabled="items.length === 0"
+          class="rounded-lg border border-rose-500/40 px-3 py-2 text-sm font-medium text-rose-400 transition hover:bg-rose-500/10 disabled:opacity-40"
+          @click="showClearConfirm = true"
+        >
+          Vider la base
+        </button>
+      </div>
+
+      <div class="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
         <p
           v-if="loading"
-          class="p-4 text-sm text-slate-500"
+          class="p-6 text-center text-sm text-slate-500"
         >
-          Loading...
+          Chargement...
         </p>
         <p
-          v-else-if="items.length === 0"
-          class="p-4 text-sm text-slate-500"
+          v-else-if="filteredItems.length === 0"
+          class="p-6 text-center text-sm text-slate-500"
         >
-          No sites watched yet.
+          {{ items.length === 0 ? "Aucun site surveillé pour l'instant." : "Aucun résultat." }}
         </p>
         <table
           v-else
           class="w-full text-sm"
         >
           <thead>
-            <tr class="border-b border-slate-100 text-left text-slate-500">
-              <th class="px-4 py-2 font-medium">
+            <tr class="border-b border-slate-800 text-left text-xs uppercase tracking-wide text-slate-500">
+              <th class="px-4 py-3 font-medium">
                 Site
               </th>
-              <th class="px-4 py-2 font-medium">
-                Status
+              <th class="px-4 py-3 font-medium">
+                Statut
               </th>
-              <th class="px-4 py-2 font-medium">
-                Latency
+              <th class="px-4 py-3 font-medium">
+                Latence
               </th>
-              <th class="px-4 py-2 font-medium">
-                TLS expiry
+              <th class="px-4 py-3 font-medium">
+                TLS
               </th>
-              <th class="px-4 py-2 font-medium">
-                Last checked
+              <th class="px-4 py-3 font-medium">
+                Dernier check
               </th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-100">
+          <tbody class="divide-y divide-slate-800">
             <tr
-              v-for="item in items"
+              v-for="item in filteredItems"
               :key="item.id"
+              class="transition-colors hover:bg-slate-800/50"
             >
               <td class="px-4 py-3">
-                <div class="text-slate-900">
+                <div class="font-medium text-white">
                   {{ item.name }}
                 </div>
                 <a
                   :href="item.url"
                   target="_blank"
                   rel="noopener"
-                  class="text-xs text-slate-400 hover:underline"
-                >{{
-                  item.url
-                }}</a>
+                  class="text-xs text-slate-500 hover:text-slate-300 hover:underline"
+                >
+                  {{ item.url }}
+                </a>
               </td>
               <td class="px-4 py-3">
                 <span
-                  class="font-medium"
+                  class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
                   :class="{
-                    'text-green-700': statusLabel(item) === 'up',
-                    'text-red-700': statusLabel(item) === 'down',
-                    'text-slate-400': statusLabel(item) === 'checking...',
+                    'bg-emerald-500/15 text-emerald-400': itemStatus(item) === 'up',
+                    'bg-rose-500/15 text-rose-400': itemStatus(item) === 'down',
+                    'bg-slate-800 text-slate-400': itemStatus(item) === 'checking',
                   }"
                 >
-                  {{ statusLabel(item) }}
+                  <span class="h-1.5 w-1.5 rounded-full bg-current" />
+                  {{ itemStatus(item) === "up" ? "up" : itemStatus(item) === "down" ? "down" : "..." }}
                 </span>
               </td>
-              <td class="px-4 py-3 text-slate-600">
+              <td
+                class="px-4 py-3 font-medium"
+                :class="latencyClass(item)"
+              >
                 {{ formatLatency(item) }}
               </td>
-              <td class="px-4 py-3 text-slate-600">
+              <td
+                class="px-4 py-3"
+                :class="tlsClass(item.tls_days_remaining)"
+              >
                 {{ formatTLS(item) }}
               </td>
-              <td class="px-4 py-3 text-xs text-slate-400">
-                {{ item.last_checked_at ? new Date(item.last_checked_at).toLocaleString() : "-" }}
+              <td class="px-4 py-3 text-xs text-slate-500">
+                {{ formatChecked(item) }}
               </td>
             </tr>
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <div
+      v-if="showClearConfirm"
+      class="fixed inset-0 z-10 flex items-center justify-center bg-black/60 px-4"
+    >
+      <div class="w-full max-w-sm rounded-xl border border-slate-800 bg-slate-900 p-5 shadow-xl">
+        <h2 class="text-lg font-semibold text-white">
+          Vider la base ?
+        </h2>
+        <p class="mt-2 text-sm text-slate-400">
+          Cette action supprime définitivement les {{ items.length }} site(s)
+          surveillé(s). Elle est irréversible.
+        </p>
+        <div class="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            class="rounded-lg border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 transition hover:bg-slate-800"
+            @click="showClearConfirm = false"
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            :disabled="clearing"
+            class="rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-rose-700 disabled:opacity-50"
+            @click="clearAll"
+          >
+            {{ clearing ? "Suppression..." : "Vider la base" }}
+          </button>
+        </div>
       </div>
     </div>
   </div>

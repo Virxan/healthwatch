@@ -92,3 +92,13 @@ func (s *MemoryStore) SaveCheckResult(_ context.Context, itemID int64, result Ch
 
 	return Item{}, fmt.Errorf("item %d not found", itemID)
 }
+
+// DeleteAllItems implements Store.
+func (s *MemoryStore) DeleteAllItems(_ context.Context) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	n := int64(len(s.items))
+	s.items = nil
+	return n, nil
+}
