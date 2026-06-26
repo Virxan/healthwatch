@@ -133,7 +133,8 @@ func (s *PGStore) SaveCheckResult(ctx context.Context, itemID int64, result Chec
 		lastError = &result.Error
 	}
 
-	row := s.pool.QueryRow(ctx, `
+	row := s.pool.QueryRow(
+		ctx, `
 		UPDATE items SET
 			last_status = $1,
 			last_http_status = $2,

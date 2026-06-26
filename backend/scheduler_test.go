@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -38,9 +39,9 @@ func TestSchedulerCheckOneSavesResult(t *testing.T) {
 }
 
 func TestSchedulerRunChecksAllItemsOnEachTick(t *testing.T) {
-	var hits int32
+	var hits atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		hits++
+		hits.Add(1)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer srv.Close()
@@ -62,8 +63,8 @@ func TestSchedulerRunChecksAllItemsOnEachTick(t *testing.T) {
 	// the immediate "check everything once on start" pass.
 	sched.Run(ctx, time.Hour)
 
-	if hits < 2 {
-		t.Errorf("hits = %d, want at least 2 (one per item)", hits)
+	if hits.Load() < 2 {
+		t.Errorf("hits = %d, want at least 2 (one per item)", hits.Load())
 	}
 
 	items, _ := store.ListItems(context.Background())
