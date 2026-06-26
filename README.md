@@ -19,20 +19,7 @@ latency and TLS expiry back onto the same row.
 
 ## Architecture
 
-```text
-                 ┌──────────────┐        ┌──────────────────────────┐
-  dev:   Vite ───┤ proxy /api/* ├───────▶│                          │
-  prod:  (nothing, Go serves    │        │   backend (Go + pgx)     │
-         the Vue build itself)  │        │   GET  /health           │
-                 └──────────────┘        │   GET  /items            │
-                                          │   POST /items            │
-                                          └────────────┬─────────────┘
-                                                        │ pgx/v5
-                                                        ▼
-                                          ┌──────────────────────────┐
-                                          │   PostgreSQL (items)     │
-                                          └──────────────────────────┘
-```
+![Healthwatch architecture: a browser loads the Vue frontend, which calls the Go backend's API; the backend's HTTP handlers, scheduler and checker read/write PostgreSQL and probe the watched websites over HTTP and TLS](docs/architecture.svg)
 
 Locally: `docker-compose` runs Postgres, the Go binary runs directly on
 the host, Vite serves the frontend with hot reload and proxies `/api/*`
@@ -273,3 +260,8 @@ forced by a real constraint rather than taste:
   enough that producing one elsewhere wasn't reliable. Commit it once
   it exists; from then on it behaves like any other Go project's
   go.sum.
+- **`docs/architecture.svg`**: not in the original file list, added
+  because an ASCII-art diagram was hard to keep accurate as the
+  backend grew a scheduler and checker. Plain SVG with hardcoded
+  colors (no CSS variables) so it renders correctly as a static file
+  on GitHub, not just in a live-rendering context.
