@@ -174,6 +174,51 @@ func TestDeleteAllItems(t *testing.T) {
 	}
 }
 
+func TestDeleteSingleItem(t *testing.T) {
+	srv := newTestServer()
+	target := newTestTargetServer(t)
+
+	body := fmt.Sprintf(`{"name":"one","url":%q}`, target.URL)
+	createRec := httptest.NewRecorder()
+	srv.ServeHTTP(createRec, httptest.NewRequest(http.MethodPost, "/items", bytes.NewBufferString(body)))
+
+	var created db.Item
+	if err := json.Unmarshal(createRec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("create response is not valid JSON: %v", err)
+	}
+
+	delReq := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/items/%d", created.ID), nil)
+	delRec := httptest.NewRecorder()
+	srv.ServeHTTP(delRec, delReq)
+
+	if delRec.Code != http.StatusNoContent {
+		t.Fatalf("delete status = %d, want 204", delRec.Code)
+	}
+
+	listRec := httptest.NewRecorder()
+	srv.ServeHTTP(listRec, httptest.NewRequest(http.MethodGet, "/items", nil))
+
+	var items []db.Item
+	if err := json.Unmarshal(listRec.Body.Bytes(), &items); err != nil {
+		t.Fatalf("list response is not a JSON array: %v", err)
+	}
+	if len(items) != 0 {
+		t.Errorf("len(items) after delete = %d, want 0", len(items))
+	}
+}
+
+func TestDeleteSingleItemNotFound(t *testing.T) {
+	srv := newTestServer()
+	req := httptest.NewRequest(http.MethodDelete, "/items/999", nil)
+	rec := httptest.NewRecorder()
+
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+}
+
 func TestCreateItemRejectsEmptyName(t *testing.T) {
 	srv := newTestServer()
 	target := newTestTargetServer(t)

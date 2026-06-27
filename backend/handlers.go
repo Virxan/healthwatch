@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"healthwatch/backend/db"
@@ -49,6 +50,7 @@ func (s *Server) routes() {
 		s.mux.HandleFunc("GET "+prefix+"/items", s.handleListItems)
 		s.mux.HandleFunc("POST "+prefix+"/items", s.handleCreateItem)
 		s.mux.HandleFunc("DELETE "+prefix+"/items", s.handleDeleteItems)
+		s.mux.HandleFunc("DELETE "+prefix+"/items/{id}", s.handleDeleteItem)
 	}
 
 	s.mux.Handle("GET /", s.frontend)
@@ -127,6 +129,28 @@ func (s *Server) handleDeleteItems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]int64{"deleted": deleted})
+}
+
+// handleDeleteItem removes a single watched item by id - the per-row
+// trash action. Returns 204 on success, 404 if no item had that id.
+func (s *Server) handleDeleteItem(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid item id"})
+		return
+	}
+
+	deleted, err := s.store.DeleteItem(r.Context(), id)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	if !deleted {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "item not found"})
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func validateURL(raw string) error {
