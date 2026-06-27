@@ -1,0 +1,79 @@
+<svg width="760" height="540" viewBox="0 0 760 540" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif" role="img">
+  <title>Healthwatch architecture</title>
+  <desc>A browser loads the Vue frontend, which calls the Go backend's /api/* routes. The backend's HTTP handlers, scheduler and checker read and write a PostgreSQL "items" table, and the checker periodically probes the watched websites over HTTP and TLS.</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M1 1L9 5L1 9" fill="none" stroke="#475569" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="arrow-purple" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M1 1L9 5L1 9" fill="none" stroke="#a855f7" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="760" height="540" fill="#ffffff"/>
+
+  <!-- arrows (drawn first, so boxes sit on top of their start/end points) -->
+  <line x1="380" y1="70" x2="380" y2="97" stroke="#475569" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="396" y="87" font-size="12" fill="#64748b">GET /</text>
+
+  <line x1="380" y1="164" x2="380" y2="191" stroke="#475569" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="396" y="181" font-size="12" fill="#64748b">fetch('/api/*')</text>
+
+  <path d="M320 384 L320 410 L220 410 L220 449" fill="none" stroke="#475569" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="232" y="423" font-size="12" fill="#64748b">reads / writes</text>
+
+  <path d="M440 384 L440 410 L550 410 L550 449" fill="none" stroke="#475569" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="556" y="423" font-size="12" fill="#64748b">HTTP + TLS</text>
+
+  <!-- Browser -->
+  <g>
+    <rect x="290" y="20" width="180" height="50" rx="10" fill="#f1f5f9" stroke="#64748b" stroke-width="1.2"/>
+    <text x="380" y="46" text-anchor="middle" dominant-baseline="central" font-size="15" font-weight="600" fill="#1e293b">Browser</text>
+  </g>
+
+  <!-- Frontend -->
+  <g>
+    <rect x="240" y="100" width="280" height="64" rx="10" fill="#e0f2fe" stroke="#0284c7" stroke-width="1.2"/>
+    <text x="380" y="123" text-anchor="middle" dominant-baseline="central" font-size="15" font-weight="600" fill="#0c4a6e">Frontend — Vue 3 + Tailwind</text>
+    <text x="380" y="144" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#0369a1">dev: Vite proxy · prod: embedded in the Go binary</text>
+  </g>
+
+  <!-- Backend container -->
+  <g>
+    <rect x="70" y="194" width="620" height="190" rx="16" fill="#f5f3ff" stroke="#9333ea" stroke-width="1.4"/>
+    <text x="92" y="220" font-size="15" font-weight="600" fill="#581c87">Backend — Go</text>
+    <text x="92" y="237" font-size="12" fill="#7e22ce">single static binary, CGO disabled</text>
+
+    <line x1="450" y1="287" x2="489" y2="287" stroke="#a855f7" stroke-width="1.6" marker-end="url(#arrow-purple)"/>
+
+    <!-- HTTP handlers -->
+    <rect x="100" y="252" width="160" height="70" rx="10" fill="#ffffff" stroke="#a855f7" stroke-width="1.2"/>
+    <text x="180" y="277" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#581c87">HTTP handlers</text>
+    <text x="180" y="297" text-anchor="middle" dominant-baseline="central" font-size="11" fill="#7e22ce">GET/POST /items</text>
+
+    <!-- Scheduler -->
+    <rect x="300" y="252" width="150" height="70" rx="10" fill="#ffffff" stroke="#a855f7" stroke-width="1.2"/>
+    <text x="375" y="277" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#581c87">Scheduler</text>
+    <text x="375" y="297" text-anchor="middle" dominant-baseline="central" font-size="11" fill="#7e22ce">ticks every 30s</text>
+
+    <!-- Checker -->
+    <rect x="490" y="252" width="160" height="70" rx="10" fill="#ffffff" stroke="#a855f7" stroke-width="1.2"/>
+    <text x="570" y="277" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#581c87">Checker</text>
+    <text x="570" y="297" text-anchor="middle" dominant-baseline="central" font-size="11" fill="#7e22ce">HTTP + TLS probe</text>
+  </g>
+
+  <!-- PostgreSQL -->
+  <g>
+    <rect x="110" y="450" width="220" height="70" rx="10" fill="#d1fae5" stroke="#059669" stroke-width="1.2"/>
+    <text x="220" y="475" text-anchor="middle" dominant-baseline="central" font-size="15" font-weight="600" fill="#064e3b">PostgreSQL</text>
+    <text x="220" y="495" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#047857">"items" table, via pgx/v5</text>
+  </g>
+
+  <!-- Watched websites -->
+  <g>
+    <rect x="430" y="450" width="240" height="70" rx="10" fill="#fef3c7" stroke="#d97706" stroke-width="1.2"/>
+    <text x="550" y="475" text-anchor="middle" dominant-baseline="central" font-size="15" font-weight="600" fill="#78350f">Watched websites</text>
+    <text x="550" y="495" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#b45309">external URLs you add</text>
+  </g>
+</svg>
